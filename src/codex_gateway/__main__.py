@@ -10,7 +10,7 @@ from .config import Settings
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Persistent HTTP gateway for the Codex CLI")
-    parser.add_argument("command", nargs="?", choices=["serve", "token"], default="serve")
+    parser.add_argument("command", nargs="?", choices=["serve"], default="serve")
     parser.add_argument("--host")
     parser.add_argument("--port", type=int)
     parser.add_argument("--workspace")
@@ -20,9 +20,6 @@ def main() -> None:
         key: value for key, value in vars(args).items() if value is not None and key != "command"
     }
     settings = Settings(**overrides)
-    if args.command == "token":
-        print(settings.token())
-        return
     uvicorn.run(
         create_app(settings), host=settings.host, port=settings.port, root_path=settings.root_path
     )

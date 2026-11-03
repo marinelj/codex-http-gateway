@@ -1,8 +1,7 @@
 """Install the gateway as a per-user macOS LaunchAgent (after uv sync).
 
 Run from this repository: uv run python scripts/install_launchd.py
-Uses .env and current environment settings. It never stores a configured API token
-in the plist; put that in a private .env or use the generated token file instead.
+Uses .env and current environment settings.
 """
 
 from __future__ import annotations
@@ -13,8 +12,6 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-
-from dotenv import dotenv_values
 
 from codex_gateway.config import Settings
 
@@ -27,11 +24,6 @@ def main():
     repo = Path(__file__).resolve().parent.parent
     settings = Settings()
     settings.prepare()
-    if (
-        os.environ.get("GATEWAY_API_TOKEN")
-        and dotenv_values(repo / ".env").get("GATEWAY_API_TOKEN") != os.environ["GATEWAY_API_TOKEN"]
-    ):
-        raise SystemExit("Put GATEWAY_API_TOKEN in the private .env before installing")
     destination = Path.home() / "Library/LaunchAgents" / f"{LABEL}.plist"
     destination.parent.mkdir(parents=True, exist_ok=True)
     # Environment overrides are explicit; the local .env remains available on restart.
@@ -39,7 +31,7 @@ def main():
         "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
         **{
             f"GATEWAY_{key.upper()}": str(value).lower() if isinstance(value, bool) else str(value)
-            for key, value in settings.model_dump(exclude={"api_token"}).items()
+            for key, value in settings.model_dump().items()
             if value is not None
         },
     }

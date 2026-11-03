@@ -78,10 +78,6 @@
         <symbol id="i-close" viewBox="0 0 24 24">
           <path d="m6 6 12 12M6 18 18 6" />
         </symbol>
-        <symbol id="i-key" viewBox="0 0 24 24">
-          <circle cx="8" cy="9" r="5" />
-          <path d="m12 13 8 8m-5-5 3-3m0 6 3-3" />
-        </symbol>
         <symbol id="i-download" viewBox="0 0 24 24">
           <path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" />
         </symbol>
@@ -162,7 +158,7 @@
           /></label>
           <div class="thread-list" id="thread-list">
             <p class="sidebar-empty">
-              Connect your gateway to see your Codex conversations here.
+              Loading conversations…
             </p>
           </div>
           <button class="text-button thread-more" id="show-more-threads" hidden>
@@ -183,11 +179,11 @@
               <use href="#i-external" /></svg></a
           ><button class="profile" id="sidebar-connect">
             <span class="profile-avatar"
-              ><svg class="icon"><use href="#i-key" /></svg></span
+              ><svg class="icon"><use href="#i-settings" /></svg></span
             ><span
-              ><strong id="connection-label">Connect your gateway</strong
+              ><strong id="connection-label">Checking gateway</strong
               ><small id="connection-description"
-                >Use your private access token</small
+                >No sign-in required</small
               ></span
             ><svg class="icon small"><use href="#i-chevron" /></svg>
           </button>
@@ -216,7 +212,7 @@
               ><span class="status-dot"></span>Checking gateway</span
             ><span class="topbar-separator"></span
             ><button class="button small-button" id="top-connect">
-              <svg class="icon"><use href="#i-key" /></svg><span>Connect</span>
+              <svg class="icon"><use href="#i-settings" /></svg><span>Connection</span>
             </button>
           </div>
         </header>
@@ -626,25 +622,14 @@
               <section class="panel connection-card">
                 <div class="panel-heading">
                   <span class="panel-icon"
-                    ><svg class="icon"><use href="#i-key" /></svg
+                    ><svg class="icon"><use href="#i-settings" /></svg
                   ></span>
                   <div>
                     <h2>Gateway access</h2>
-                    <p>Your private connection to Codex.</p>
+                    <p>Your direct connection to Codex.</p>
                   </div>
                 </div>
                 <dl class="settings-list" id="connection-settings"></dl>
-                <div class="connection-buttons">
-                  <button class="button primary" id="change-token">
-                    Connect / change token</button
-                  ><button class="button" id="disconnect" disabled>
-                    Disconnect
-                  </button>
-                </div>
-                <p class="settings-note">
-                  The access token stays in this tab’s memory. Refreshing or
-                  disconnecting clears it.
-                </p>
               </section>
               <section class="panel connection-card">
                 <div class="panel-heading">
@@ -693,54 +678,6 @@
         </div>
       </main>
     </div>
-    <dialog id="connect-dialog" aria-labelledby="connect-heading">
-      <form id="connect-form">
-        <div class="dialog-top">
-          <span class="dialog-icon"
-            ><svg class="icon"><use href="#i-key" /></svg></span
-          ><button
-            type="button"
-            class="icon-button"
-            id="close-connect"
-            aria-label="Close connection dialog"
-          >
-            <svg class="icon"><use href="#i-close" /></svg>
-          </button>
-        </div>
-        <div class="eyebrow">A PRIVATE CONNECTION</div>
-        <h2 id="connect-heading">Let’s connect your workspace.</h2>
-        <p>
-          Enter your gateway access token to see your threads and start a
-          conversation.
-        </p>
-        <label class="field-label" for="access-token">ACCESS TOKEN</label
-        ><input
-          id="access-token"
-          type="password"
-          placeholder="Paste your gateway token"
-          autocomplete="off"
-          spellcheck="false"
-          required
-          minlength="32"
-        />
-        <p class="token-help">
-          On the server, run <code>uv run codex-gateway token</code> to get your
-          token.
-        </p>
-        <div
-          class="banner error-banner"
-          id="connect-error"
-          role="alert"
-          hidden
-        ></div>
-        <button class="button primary" type="submit" id="connect-submit">
-          Connect to gateway<svg class="icon"><use href="#i-arrow" /></svg>
-        </button>
-        <p class="token-privacy">
-          Kept in this tab’s memory. Never saved to browser storage.
-        </p>
-      </form>
-    </dialog>
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   </body>
 </html>

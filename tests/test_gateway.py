@@ -9,19 +9,20 @@ from uuid import uuid4
 
 import pytest
 
-from codex_gateway.config import Settings
 from codex_gateway.store import Store
 
 from .conftest import client_for, submit, wait_terminal
 
 
-async def test_auth_validation_and_body_limit(settings_factory):
+async def test_no_auth_required_validation_and_body_limit(settings_factory):
     async with client_for(settings_factory()) as (client, _):
-        assert (await client.get("/healthz", headers={"Authorization": ""})).status_code == 200
-        for token in ("", "Bearer bad", "Basic bad"):
-            response = await client.get("/v1/runs", headers={"Authorization": token})
-            assert response.status_code == 401
-            assert response.headers["www-authenticate"] == "Bearer"
+        assert (await client.get("/healthz")).status_code == 200
+        for authorization in ("", "Bearer obsolete", "Basic obsolete"):
+            response = await client.get("/v1/runs", headers={"Authorization": authorization})
+            assert response.status_code == 200
+            assert "www-authenticate" not in response.headers
+        schema = (await client.get("/openapi.json")).json()
+        assert not schema.get("components", {}).get("securitySchemes")
         for body in (
             {"prompt": " "},
             {"prompt": "ok", "thread_id": "bad"},
@@ -264,10 +265,11 @@ async def test_supervisor_stops_cli_when_gateway_pipe_closes(settings_factory):
     assert await asyncio.wait_for(proc.wait(), 5) != 0
 
 
-def test_generated_token_is_private_and_stable(tmp_path):
-    settings = Settings(_env_file=None, data_dir=tmp_path / "private")
-    assert settings.token() == settings.token()
-    assert (settings.data_dir / "api-token").stat().st_mode & 0o777 == 0o600
+async def test_startup_does_not_generate_gateway_credentials(settings_factory):
+    settings = settings_factory()
+    async with client_for(settings) as (client, _):
+        assert (await client.get("/v1/overview")).status_code == 200
+        assert not (settings.data_dir / "api-token").exists()
 
 
 def test_proxy_only_changes_child_environment(settings_factory, monkeypatch):

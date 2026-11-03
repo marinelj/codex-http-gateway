@@ -1,11 +1,9 @@
-import secrets
 from contextlib import asynccontextmanager
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi import APIRouter, FastAPI, Header, Query, Request, Response
 from fastapi.responses import JSONResponse
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from . import __version__
 from .config import Settings
@@ -85,11 +83,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         settings.prepare()
-        token = settings.token()
         store = Store(settings)
         gateway = Gateway(settings, store)
         app.state.gateway = gateway
-        app.state.token = token
         try:
             await gateway.start()
             yield
@@ -104,22 +100,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         description="Submit Codex prompts asynchronously and retrieve persistent thread output.",
     )
     app.add_middleware(BodyLimit)
-    bearer = HTTPBearer(auto_error=False)
-
-    async def authenticate(
-        request: Request,
-        credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
-    ) -> None:
-        if credentials is None or not secrets.compare_digest(
-            credentials.credentials.encode(), request.app.state.token.encode()
-        ):
-            raise HTTPException(
-                401,
-                "Valid gateway bearer token required",
-                headers={
-                    "WWW-Authenticate": "Bearer",
-                },
-            )
 
     @app.exception_handler(GatewayError)
     async def gateway_error(_request: Request, error: GatewayError):
@@ -138,7 +118,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def health() -> dict:
         return {"status": "ok", "version": __version__}
 
-    router = APIRouter(prefix="/v1", dependencies=[Depends(authenticate)])
+    router = APIRouter(prefix="/v1")
 
     def gateway(request: Request) -> Gateway:
         return request.app.state.gateway

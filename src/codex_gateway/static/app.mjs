@@ -12,7 +12,8 @@ import {
 const $ = (id) => document.getElementById(id);
 const base = document.body.dataset.base || "";
 const state = {
-  token: "",
+  online: null,
+  catalogLoaded: false,
   generation: 0,
   view: "workspace",
   overview: null,
@@ -36,7 +37,7 @@ const state = {
   threadData: null,
   threadLoading: null,
 };
-const client = new GatewayClient(base, () => state.token);
+const client = new GatewayClient(base);
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -71,19 +72,9 @@ function toast(message) {
 }
 function report(error) {
   if (error.name === "AbortError") return;
-  if (error.status === 401 && state.token) {
-    disconnect();
-    openConnect();
-  }
   $("page-error-text").textContent =
     error.message || "Something went wrong. Please try again.";
   $("page-error").hidden = false;
-}
-function openConnect() {
-  $("connect-error").hidden = true;
-  $("access-token").value = "";
-  if (!$("connect-dialog").open) $("connect-dialog").showModal();
-  $("access-token").focus();
 }
 function closeSidebar() {
   $("sidebar").classList.remove("open");
@@ -111,18 +102,14 @@ function navigate(view, changeHash = true) {
   closeSidebar();
   if (changed) window.scrollTo({ top: 0, behavior: "instant" });
 }
-function renderAuth() {
-  const connected = Boolean(state.token);
-  $("connection-label").textContent = connected
-    ? "Gateway connected"
-    : "Connect your gateway";
-  $("connection-description").textContent = connected
-    ? "Private · this tab only"
-    : "Use your private access token";
-  $("top-connect").querySelector("span").textContent = connected
-    ? "Connected"
-    : "Connect";
-  $("disconnect").disabled = !connected;
+function renderConnection() {
+  $("connection-label").textContent =
+    state.online === null
+      ? "Checking gateway"
+      : state.online
+        ? "Gateway online"
+        : "Gateway offline";
+  $("connection-description").textContent = "No sign-in required";
   renderSettings();
 }
 function renderOverview() {
@@ -149,9 +136,12 @@ function renderOverview() {
 function renderSettings() {
   const info = state.overview;
   const rows = [
-    ["Status", state.token ? "Connected" : "Not connected"],
+    [
+      "Status",
+      state.online === null ? "Checking…" : state.online ? "Online" : "Offline",
+    ],
     ["API address", location.origin + base],
-    ["New conversations", info?.workspace || "Connect to view"],
+    ["New conversations", info?.workspace || "Loading…"],
     [
       "Access policy",
       info
@@ -224,8 +214,8 @@ function renderThreads() {
       el(
         "p",
         "sidebar-empty",
-        !state.token
-          ? "Connect your gateway to see your Codex conversations here."
+        !state.catalogLoaded
+          ? "Loading conversations…"
           : query
             ? "No threads match your search."
             : "No saved conversations yet. Start one with a prompt.",
@@ -427,6 +417,7 @@ async function loadThreads() {
       if (cursor) seen.add(cursor);
     } while (cursor);
     state.threads = [...threads.values()];
+    state.catalogLoaded = true;
     if (state.selectedThread) {
       const fresh = threads.get(state.selectedThread.thread_id);
       if (fresh) state.selectedThread = fresh;
@@ -437,10 +428,6 @@ async function loadThreads() {
   }
 }
 async function refreshWorkspace() {
-  if (!state.token) {
-    openConnect();
-    return;
-  }
   if (state.refreshing) return;
   state.refreshing = true;
   $("refresh-workspace").classList.add("spinning");
@@ -452,8 +439,7 @@ async function refreshWorkspace() {
     ]);
     for (const result of results)
       if (result.status === "rejected") report(result.reason);
-    if (state.token && state.output === "thread")
-      await loadThreadActivity(true);
+    if (state.output === "thread") await loadThreadActivity(true);
   } finally {
     state.refreshing = false;
     $("refresh-workspace").classList.remove("spinning");
@@ -548,7 +534,7 @@ function renderActivity(
 async function loadThreadActivity(force = false) {
   const id = state.run?.thread_id || state.selectedThread?.thread_id;
   const version = state.requestVersion;
-  if (!id || !state.token || state.threadLoading === version) return;
+  if (!id || state.threadLoading === version) return;
   const previous = state.threadData;
   if (
     !force &&
@@ -725,7 +711,7 @@ function mergeRun(page) {
 async function pollRun(runId, version) {
   clearTimeout(state.pollTimer);
   state.pollTimer = null;
-  if (!state.token || version !== state.requestVersion) return;
+  if (version !== state.requestVersion) return;
   try {
     let page;
     do {
@@ -748,7 +734,7 @@ async function pollRun(runId, version) {
   } catch (error) {
     if (version !== state.requestVersion) return;
     report(error);
-    if (state.token && error.status !== 404)
+    if (error.status !== 404)
       state.pollTimer = setTimeout(() => pollRun(runId, version), 4000);
   }
 }
@@ -786,10 +772,6 @@ async function openRun(runId, setTarget = true) {
 async function sendPrompt(event) {
   event.preventDefault();
   if (state.sending) return;
-  if (!state.token) {
-    openConnect();
-    return;
-  }
   const prompt = $("prompt").value;
   if (!prompt.trim()) {
     $("prompt").focus();
@@ -799,7 +781,12 @@ async function sendPrompt(event) {
   if (thread && (!thread.can_send || ACTIVE.has(thread.status))) return;
   const bodyKey = JSON.stringify([prompt, thread?.thread_id || null]);
   if (state.retrySubmission?.bodyKey !== bodyKey)
-    state.retrySubmission = { bodyKey, key: crypto.randomUUID() };
+    state.retrySubmission = {
+      bodyKey,
+      key: Array.from(crypto.getRandomValues(new Uint8Array(16)), (value) =>
+        value.toString(16).padStart(2, "0"),
+      ).join(""),
+    };
   state.sending = true;
   applyTarget();
   $("page-error").hidden = true;
@@ -874,25 +861,6 @@ async function exportOutput() {
       !state.run && !state.threadData?.events.length;
   }
 }
-function disconnect() {
-  state.token = "";
-  state.generation++;
-  state.overview = null;
-  state.threads = [];
-  state.runs = [];
-  state.selectedThread = null;
-  state.sending = false;
-  state.retrySubmission = null;
-  state.historyAfter = null;
-  state.historyHasMore = false;
-  state.historyPages = 0;
-  resetOutput();
-  renderAuth();
-  renderOverview();
-  renderThreads();
-  renderRuns();
-  applyTarget();
-}
 async function checkHealth() {
   try {
     const response = await fetch(base + "/healthz", {
@@ -902,58 +870,25 @@ async function checkHealth() {
     if (!response.ok) throw new Error();
     const status = await response.json();
     if (status.status !== "ok") throw new Error();
+    state.online = true;
     $("health-status").className = "health-status online";
     $("health-status").replaceChildren(
       el("span", "status-dot"),
       document.createTextNode("Gateway online"),
     );
   } catch {
+    state.online = false;
     $("health-status").className = "health-status offline";
     $("health-status").replaceChildren(
       el("span", "status-dot"),
       document.createTextNode("Gateway offline"),
     );
   }
+  renderConnection();
 }
 
-$("connect-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const candidate = $("access-token").value.trim();
-  $("connect-submit").disabled = true;
-  $("connect-error").hidden = true;
-  try {
-    const candidateClient = new GatewayClient(base, () => candidate);
-    const overview = await candidateClient.request("/v1/overview");
-    state.generation++;
-    state.token = candidate;
-    state.overview = overview;
-    $("access-token").value = "";
-    $("connect-dialog").close();
-    $("page-error").hidden = true;
-    renderAuth();
-    renderOverview();
-    await refreshWorkspace();
-    toast("Workspace connected");
-  } catch (error) {
-    $("connect-error").textContent =
-      error.status === 401
-        ? "That token was not accepted. Check it and try again."
-        : error.message;
-    $("connect-error").hidden = false;
-  } finally {
-    $("connect-submit").disabled = false;
-  }
-});
-$("connect-dialog").addEventListener("close", () => {
-  $("access-token").value = "";
-});
-$("close-connect").addEventListener("click", () => $("connect-dialog").close());
-for (const id of ["top-connect", "sidebar-connect", "change-token"])
-  $(id).addEventListener("click", openConnect);
-$("disconnect").addEventListener("click", () => {
-  disconnect();
-  toast("Disconnected. Access token cleared.");
-});
+for (const id of ["top-connect", "sidebar-connect"])
+  $(id).addEventListener("click", () => navigate("connection"));
 $("new-conversation").addEventListener("click", newConversation);
 $("clear-target").addEventListener("click", () => {
   state.selectedThread = null;
@@ -968,13 +903,10 @@ document
 $("view-all-runs").addEventListener("click", () => navigate("runs"));
 $("refresh-workspace").addEventListener("click", refreshWorkspace);
 $("refresh-history").addEventListener("click", () => refreshWorkspace());
-$("refresh-threads").addEventListener("click", () =>
-  state.token ? loadThreads().catch(report) : openConnect(),
-);
+$("refresh-threads").addEventListener("click", () => loadThreads().catch(report));
 $("check-connection").addEventListener("click", async () => {
   await checkHealth();
-  if (state.token) await refreshWorkspace();
-  else openConnect();
+  await refreshWorkspace();
 });
 $("dismiss-error").addEventListener("click", () => {
   $("page-error").hidden = true;
@@ -1008,10 +940,6 @@ $("prompt").addEventListener("keydown", (event) => {
   }
 });
 $("use-thread-id").addEventListener("click", async () => {
-  if (!state.token) {
-    openConnect();
-    return;
-  }
   const id = $("manual-thread").value.trim();
   if (!id) return;
   $("use-thread-id").disabled = true;
@@ -1115,11 +1043,7 @@ $("mobile-menu").addEventListener("click", () => {
 });
 $("sidebar-backdrop").addEventListener("click", closeSidebar);
 window.addEventListener("keydown", (event) => {
-  if (
-    (event.metaKey || event.ctrlKey) &&
-    event.key.toLowerCase() === "k" &&
-    !$("connect-dialog").open
-  ) {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
     newConversation();
   }
@@ -1129,7 +1053,7 @@ window.addEventListener("hashchange", () =>
   navigate(location.hash.slice(1), false),
 );
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden || !state.token) return;
+  if (document.hidden) return;
   if (state.run && ACTIVE.has(state.run.status))
     pollRun(state.run.run_id, state.requestVersion);
   refreshWorkspace();
@@ -1137,19 +1061,26 @@ document.addEventListener("visibilitychange", () => {
 setInterval(() => {
   if (document.hidden) return;
   checkHealth();
-  if (state.token && !state.refreshing) refreshWorkspace();
+  if (!state.refreshing) refreshWorkspace();
 }, 30000);
 window.addEventListener("pagehide", () => {
-  state.token = "";
+  state.generation++;
+  state.requestVersion++;
   clearTimeout(state.pollTimer);
 });
 window.addEventListener("pageshow", (event) => {
-  if (event.persisted) disconnect();
+  if (event.persisted) {
+    checkHealth();
+    refreshWorkspace();
+    if (state.run && ACTIVE.has(state.run.status))
+      pollRun(state.run.run_id, state.requestVersion);
+  }
 });
 
 navigate(location.hash.slice(1) || "workspace", false);
-renderAuth();
+renderConnection();
 renderOverview();
 renderRuns();
 renderThreads();
 checkHealth();
+refreshWorkspace();

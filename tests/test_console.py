@@ -29,17 +29,19 @@ def saved_thread(settings, workspace=None, name="Design a feature", archived=Fal
     return thread_id
 
 
-async def test_console_is_public_but_private_workspace_details_are_protected(settings_factory):
+async def test_console_and_workspace_load_without_sign_in(settings_factory):
     async with client_for(settings_factory(root_path="/codex")) as (client, _):
-        page = await client.get("/", headers={"Authorization": ""})
+        page = await client.get("/")
         assert page.status_code == 200
         assert 'data-base="/codex"' in page.text
         assert 'src="/codex/assets/app.mjs"' in page.text
         assert "Active threads" in page.text
+        assert "connect-dialog" not in page.text
+        assert "access-token" not in page.text
         assert "frame-ancestors 'none'" in page.headers["content-security-policy"]
         assert "no-referrer" == page.headers["referrer-policy"]
         for path in ["/v1/overview", "/v1/threads"]:
-            assert (await client.get(path, headers={"Authorization": ""})).status_code == 401
+            assert (await client.get(path)).status_code == 200
         for path in ["styles.css", "app.mjs", "client.mjs", "favicon.svg"]:
             assert (await client.get("/codex/assets/" + path)).status_code == 200
         assert (await client.get("/ui")).headers["location"] == "/codex/"

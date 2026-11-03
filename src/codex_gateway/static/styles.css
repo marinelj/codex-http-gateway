@@ -1551,15 +1551,6 @@ textarea#prompt::placeholder {
 .settings-list dd code {
   font-size: 12px;
 }
-.connection-buttons {
-  display: flex;
-  gap: 9px;
-  margin-top: 25px;
-  flex-wrap: wrap;
-}
-.connection-buttons .button {
-  font-size: 12px;
-}
 .settings-note {
   font-size: 12px;
   line-height: 1.8;
@@ -1641,104 +1632,6 @@ textarea#prompt::placeholder {
   max-width: 90vw;
   line-height: 1.6;
   text-align: center;
-}
-dialog {
-  max-width: 445px;
-  width: calc(100% - 35px);
-  padding: 30px;
-  border: 1px solid #e4ead9;
-  border-radius: 15px;
-  box-shadow: 0 30px 100px #242f1a25;
-  color: #526642;
-  background: #fff;
-}
-dialog::backdrop {
-  background: #222b1b35;
-  backdrop-filter: blur(3px);
-}
-.dialog-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 25px;
-}
-.dialog-icon {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: #eef4e5;
-  color: #687754;
-  border: 1px solid #e2ecd5;
-}
-.dialog-icon .icon {
-  width: 21px;
-  height: 21px;
-}
-.dialog-top > .icon-button {
-  margin-top: -10px;
-  margin-right: -10px;
-}
-dialog .eyebrow {
-  font-size: 10px;
-  letter-spacing: 1.4px;
-  margin-bottom: 8px;
-}
-dialog h2 {
-  font-size: 23px;
-  line-height: 1.4;
-  font-weight: 450;
-  letter-spacing: -0.7px;
-}
-dialog p {
-  font-size: 13px;
-  color: #6c7660;
-  line-height: 1.8;
-  margin-top: 10px;
-  margin-bottom: 24px;
-}
-dialog .field-label {
-  margin-bottom: 8px;
-}
-dialog input {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #dfe8d4;
-  border-radius: 7px;
-  color: #5f7a46;
-  font-size: 14px;
-}
-dialog input::placeholder {
-  color: #6a7360;
-}
-dialog .token-help {
-  font-size: 12px;
-  margin: 12px 0 20px;
-}
-dialog .token-help code {
-  font-size: 11px;
-  background: #f3f7ed;
-  padding: 3px 4px;
-  border-radius: 3px;
-  color: #667754;
-}
-dialog .primary {
-  width: 100%;
-  justify-content: space-between;
-  font-size: 13px;
-  padding: 11px 13px;
-}
-dialog .token-privacy {
-  font-size: 11px;
-  margin: 13px 0 0;
-  text-align: center;
-  color: #6a725f;
-}
-dialog .error-banner {
-  font-size: 12px;
-  padding: 9px 11px;
-  margin: 10px 0 15px;
 }
 .pulse {
   animation: pulse 2s infinite;
@@ -2096,12 +1989,6 @@ dialog .error-banner {
   }
   .response-heading h2 {
     font-size: 14px;
-  }
-  .connection-buttons .button {
-    font-size: 11px;
-  }
-  dialog {
-    padding: 24px;
   }
   .endpoint-list > div {
     gap: 6px;

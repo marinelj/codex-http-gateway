@@ -11,8 +11,6 @@ import pytest
 from codex_gateway.app import create_app
 from codex_gateway.config import Settings
 
-TOKEN = "test-token-" + "x" * 40
-
 
 @pytest.fixture
 def settings_factory(tmp_path):
@@ -32,7 +30,6 @@ def settings_factory(tmp_path):
                 "data_dir": tmp_path / "data",
                 "codex_home": tmp_path / "codex-home",
                 "codex_bin": str(executable),
-                "api_token": TOKEN,
                 "startup_wait_seconds": 3,
                 **overrides,
             },
@@ -48,7 +45,6 @@ async def client_for(settings):
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app, root_path=settings.root_path),
             base_url="http://test",
-            headers={"Authorization": f"Bearer {TOKEN}"},
         ) as client:
             yield client, app.state.gateway
 

@@ -21,7 +21,7 @@ setting, the mount is disabled. Other paths remain the provider's responsibility
 
 The adapter accepts loopback HTTP origins only, limits request bodies to 512 KiB,
 sets a 15-second upstream inactivity timeout, removes hop-by-hop headers, and streams
-responses with backpressure. It forwards the caller's authentication as-is. Configure
+responses with backpressure. Configure
 browser CORS and allowed headers (including `Idempotency-Key`) in the existing provider.
 
 ```sh

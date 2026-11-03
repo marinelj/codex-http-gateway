@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import os
-import secrets
 import shutil
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,7 +22,6 @@ class Settings(BaseSettings):
         default_factory=lambda: Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex")))
     )
     codex_bin: str = "codex"
-    api_token: SecretStr | None = None
     sandbox: Literal["read-only", "workspace-write"] = "read-only"
     model: str | None = None
     proxy_url: str | None = None
@@ -57,13 +55,6 @@ class Settings(BaseSettings):
     def absolute_path(cls, value: Path) -> Path:
         return value.expanduser().resolve()
 
-    @field_validator("api_token")
-    @classmethod
-    def validate_token(cls, value: SecretStr | None) -> SecretStr | None:
-        if value is not None and len(value.get_secret_value()) < 32:
-            raise ValueError("GATEWAY_API_TOKEN must contain at least 32 characters")
-        return value
-
     def prepare(self) -> None:
         if not self.workspace.is_dir():
             raise ValueError(f"Workspace does not exist: {self.workspace}")
@@ -72,20 +63,3 @@ class Settings(BaseSettings):
             raise ValueError(f"Codex executable not found: {self.codex_bin}")
         self.codex_bin = executable
         self.data_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-
-    def token(self) -> str:
-        if self.api_token is not None:
-            return self.api_token.get_secret_value()
-        self.data_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-        path = self.data_dir / "api-token"
-        try:
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        except FileExistsError:
-            pass
-        else:
-            with os.fdopen(fd, "w") as stream:
-                stream.write(secrets.token_urlsafe(36) + "\n")
-        value = path.read_text().strip()
-        if len(value) < 32:
-            raise ValueError(f"Invalid API token in {path}")
-        return value

@@ -15,7 +15,6 @@ test("the selected thread UUID and prompt are sent without modification", async 
   let request;
   const client = new GatewayClient(
     "/codex",
-    () => "test-access-token",
     async (url, options) => {
       request = { url, options };
       return { ok: true, json: async () => ({ run_id: "run_test" }) };
@@ -27,18 +26,14 @@ test("the selected thread UUID and prompt are sent without modification", async 
     prompt: "hello\n<not HTML>",
     thread_id: "selected-thread-uuid",
   });
-  assert.equal(
-    request.options.headers.Authorization,
-    "Bearer test-access-token",
-  );
+  assert.equal(request.options.headers.Authorization, undefined);
   assert.equal(request.options.headers["Idempotency-Key"], "retry-key");
   assert.equal(request.options.credentials, "omit");
 });
 
-test("new conversations send a null ID and disconnected clients send no credential", async () => {
+test("new conversations send a null ID without a credential", async () => {
   const client = new GatewayClient(
     "/codex/",
-    () => "",
     async (url, options) => {
       assert.equal(url, "/codex/v1/runs");
       assert.equal(JSON.parse(options.body).thread_id, null);
@@ -52,7 +47,6 @@ test("new conversations send a null ID and disconnected clients send no credenti
 test("API errors retain status and user-readable messages", async () => {
   const client = new GatewayClient(
     "",
-    () => "",
     async () => ({
       ok: false,
       status: 409,
@@ -77,7 +71,6 @@ test("API errors retain status and user-readable messages", async () => {
 test("browser fetch receives the correct global receiver", async () => {
   const client = new GatewayClient(
     "",
-    () => "",
     async function () {
       assert.equal(this, globalThis);
       return { ok: true, json: async () => ({}) };

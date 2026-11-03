@@ -23,22 +23,21 @@ uv run codex-gateway serve --workspace /absolute/path/to/your/git-project
 ```
 
 The default address is `http://127.0.0.1:8080`. Interactive API documentation is at
-`/docs`; `/healthz` is public. All `/v1` endpoints require a **gateway bearer token**.
-A random token is generated on first start, stored outside the workspace with mode `0600`.
+`/docs`; health checks are at `/healthz`. The console and `/v1` APIs open directly,
+without a gateway token or sign-in.
 
 ```sh
-export GATEWAY_TOKEN="$(uv run codex-gateway token)"
 export BASE=http://127.0.0.1:8080
 ```
 
-The service reuses local Codex authentication. Its HTTP token is separate from your
-Codex credentials. No model or API key is hardcoded.
+The service reuses local Codex CLI authentication. No model or API key is hardcoded.
 
 ## Web console
 
 Open the gateway's root URL (`http://127.0.0.1:8080/` standalone, or
-`http://127.0.0.1:8080/codex/` through the shared-port provider). Click **Connect**
-and paste the token returned by `uv run codex-gateway token`.
+`http://127.0.0.1:8080/codex/` through the shared-port provider). Threads and history
+load automatically. On the same LAN, use `http://<server-ip>:8080/codex/` when the
+provider is configured to listen on its LAN interface.
 
 The **Active threads** sidebar lists saved, non-archived local Codex threads across
 all sources and providers, including conversations created outside the gateway.
@@ -58,10 +57,9 @@ run, or continue the conversation. The activity panel shows the latest 500 event
 JSON downloads include every recorded event. History provides status filters and
 pagination. The connection screen shows the workspace, sandbox, model and service limits.
 
-The token is kept only in the tab's memory, with no cookies, localStorage or
-sessionStorage. Reloading or disconnecting clears it. Prompts and model output are
-rendered as text, without executing model-supplied HTML. All scripts, styles and
-icons are served locally; no third-party assets receive your token or conversations.
+Prompts and model output are rendered as text, without executing model-supplied
+HTML. All scripts, styles and icons are served locally; no third-party assets
+receive your conversations.
 
 To send prompts to saved threads from other projects, set
 `GATEWAY_ALLOW_OTHER_WORKSPACES=true`. Each accepted run persists that thread's
@@ -73,7 +71,6 @@ remain visible with sending disabled.
 
 ```sh
 curl -sS "$BASE/v1/runs" \
-  -H "Authorization: Bearer $GATEWAY_TOKEN" \
   -H 'Content-Type: application/json' \
   -H 'Idempotency-Key: architecture-review-1' \
   -d '{"prompt":"Review this project and summarize its architecture","thread_id":null}'
@@ -97,12 +94,11 @@ A thread ID is never invented. Supply that UUID in a later POST to continue:
 
 ```sh
 curl -sS "$BASE/v1/runs" \
-  -H "Authorization: Bearer $GATEWAY_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"prompt":"Which part should I improve first?","thread_id":"<thread-uuid>"}'
 
-curl -sS "$BASE/v1/threads/<thread-uuid>" -H "Authorization: Bearer $GATEWAY_TOKEN"
-curl -sS "$BASE/v1/runs/<run-id>" -H "Authorization: Bearer $GATEWAY_TOKEN"
+curl -sS "$BASE/v1/threads/<thread-uuid>"
+curl -sS "$BASE/v1/runs/<run-id>"
 ```
 
 The thread response includes `status`, `latest_run` (with `final_output`, usage,
@@ -131,7 +127,7 @@ and strictly increasing; the latest status is returned even with an empty event 
 | GET | `/v1/threads/{thread_id}` | Latest status and paginated events across the thread |
 | GET | `/v1/runs/{run_id}` | One prompt, status, output and paginated events |
 | GET | `/v1/runs` | Paginated run summaries; optional `thread_id`, `after`, `limit`, `order=asc\|desc` |
-| GET | `/v1/overview` | Authenticated workspace settings and aggregate run counts |
+| GET | `/v1/overview` | Workspace settings and aggregate run counts |
 | POST | `/v1/runs/{run_id}/cancel` | Stop a queued or active run; safe to repeat |
 | GET | `/healthz` | Service liveness; does not verify model access or authentication |
 
@@ -175,10 +171,9 @@ CLI `--host`, `--port`, `--workspace`, and `--data-dir` override these values.
 | `GATEWAY_ROOT_PATH` | empty | Public proxy prefix, e.g. `/codex` |
 | `GATEWAY_WORKSPACE` | current directory | Default folder for new conversations; normally a Git repo |
 | `GATEWAY_ALLOW_OTHER_WORKSPACES` | `false` | Permit saved threads to resume in their original project folders |
-| `GATEWAY_DATA_DIR` | `~/.local/state/codex-http-gateway` | SQLite database, lock and generated HTTP token |
+| `GATEWAY_DATA_DIR` | `~/.local/state/codex-http-gateway` | SQLite database and instance lock |
 | `GATEWAY_CODEX_HOME` | `CODEX_HOME` or `~/.codex` | Saved CLI auth, configuration and sessions |
 | `GATEWAY_CODEX_BIN` | `codex` | CLI executable |
-| `GATEWAY_API_TOKEN` | generated file | Supply a token of at least 32 characters instead |
 | `GATEWAY_SANDBOX` | `read-only` | `read-only` or `workspace-write` |
 | `GATEWAY_MODEL` | CLI configuration | Optional model override |
 | `GATEWAY_PROXY_URL` | inherited proxy environment | Optional HTTP(S) proxy for CLI network requests |
@@ -212,17 +207,15 @@ GATEWAY_PORT=18080 GATEWAY_ROOT_PATH=/codex \
 ```
 
 Configure the provider to strip `/codex` and forward to `http://127.0.0.1:18080`,
-preserving the client `Authorization`, `Content-Type`, and `Idempotency-Key` headers.
+preserving the client `Content-Type` and `Idempotency-Key` headers.
 For a Node HTTP provider, use the [included adapter](integrations/node-http/README.md).
 Then use `BASE=http://your-provider:8080/codex`. `/codex/docs` and returned polling
-URLs include the public prefix. The provider must not substitute its own privileged
-gateway token; clients authenticate directly to the gateway.
+URLs include the public prefix.
 
-For internet access, terminate HTTPS at the existing publishing edge. This is a
-single-operator service: everyone holding its token shares the workspace and history.
-It can run tools and access local data under the selected Codex policy. It is not
-a sandbox for mutually untrusted tenants. Approval requests are disabled for headless
-execution, while the configured Codex sandbox remains enabled.
+This is a single-operator service with no gateway authentication. Anyone who can
+reach the API can submit prompts and read its shared thread history. Codex uses the
+host's local account and the configured sandbox. Approval requests are disabled for
+headless execution, while the configured Codex sandbox remains enabled.
 
 ## Development
 
@@ -252,8 +245,7 @@ uv run python scripts/install_launchd.py
 ```
 
 This starts the gateway now and restarts it on failure and subsequent user login.
-Logs are written to `GATEWAY_DATA_DIR/service*.log`. The generated HTTP token is
-never written to logs or the LaunchAgent.
+Logs are written to `GATEWAY_DATA_DIR/service*.log`.
 
 Rerun the installer after changing `.env` so the LaunchAgent's settings are refreshed.
 

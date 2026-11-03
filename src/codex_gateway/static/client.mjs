@@ -22,9 +22,8 @@ export class ApiError extends Error {
 }
 
 export class GatewayClient {
-  constructor(base, getToken, transport = fetch) {
+  constructor(base, transport = fetch) {
     this.base = base.replace(/\/$/, "");
-    this.getToken = getToken;
     this.transport = transport.bind(globalThis);
   }
 
@@ -32,8 +31,6 @@ export class GatewayClient {
     if (!path.startsWith("/") || path.startsWith("//"))
       throw new Error("Invalid API path");
     const headers = { Accept: "application/json" };
-    const token = this.getToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
     if (body !== undefined) headers["Content-Type"] = "application/json";
     if (key) headers["Idempotency-Key"] = key;
     let response;

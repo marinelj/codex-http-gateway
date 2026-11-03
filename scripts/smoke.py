@@ -2,16 +2,13 @@
 
 This invokes the real Codex model twice and consumes normal account usage.
 Run: uv run python scripts/smoke.py --base-url http://127.0.0.1:8080/codex
-Use --token-file when GATEWAY_DATA_DIR differs from its default.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import time
-from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
@@ -21,11 +18,7 @@ from uuid import uuid4
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://127.0.0.1:8080/codex")
-    parser.add_argument(
-        "--token-file", type=Path, default=Path.home() / ".local/state/codex-http-gateway/api-token"
-    )
     args = parser.parse_args()
-    token = os.environ.get("GATEWAY_API_TOKEN") or args.token_file.read_text().strip()
 
     def call(path, body=None):
         url = urljoin(args.base_url.rstrip("/") + "/", path)
@@ -33,7 +26,6 @@ def main():
             url,
             data=json.dumps(body).encode() if body is not None else None,
             headers={
-                "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
             },
         )

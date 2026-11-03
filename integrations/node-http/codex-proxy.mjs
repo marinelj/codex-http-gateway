@@ -34,7 +34,7 @@ function cleanHeaders(headers) {
   return Object.fromEntries(Object.entries(headers).filter(([name]) => !blocked.has(name)));
 }
 
-/** Optional loopback-only mount; the upstream authenticates each client's own bearer token. */
+/** Optional mount for a gateway running on a loopback-only upstream. */
 export function createCodexProxy(upstream) {
   if (!upstream) return null;
   const target = new URL(upstream);
