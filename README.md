@@ -1,4 +1,4 @@
-# Codex HTTP Gateway
+# Codex Online
 
 A small, persistent HTTP service for submitting prompts to the **Codex CLI** and polling
 thread status and output. New conversations and follow-up prompts use the same API.
@@ -48,7 +48,7 @@ Runtime activity in a different Codex process is not necessarily visible to this
 Click a thread to select its ID and project folder. Enter a prompt, then click
 **Send to this thread** (or press Command/Ctrl+Enter). Selecting a thread does not
 submit the draft by itself. **New conversation** starts in the configured default
-workspace; **Use a thread ID directly** also accepts a saved local UUID.
+workspace.
 
 The response panel provides **Answer**, **Activity** for one run, **Thread** for
 all gateway-recorded activity on that conversation, and **JSON**. Runs update

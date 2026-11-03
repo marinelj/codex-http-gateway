@@ -1,4 +1,4 @@
-# Console design
+# Codex Online design
 
 Reference research was performed in Mobbin's signed-in Pro web library.
 
@@ -8,7 +8,7 @@ Reference research was performed in Mobbin's signed-in Pro web library.
 
 Applied principles: persistent left navigation, clear selected context, quiet borders,
 a spacious composer, progressive disclosure for technical details, and readable output.
-The gateway uses its own olive and charcoal palette, wordmark, SVG icons, and layouts.
+Codex Online uses its own olive and charcoal palette, wordmark, SVG icons, and layouts.
 No Mobbin screenshot or third-party application asset is bundled in the product.
 
 The thread list is the primary navigation. A selected thread's title, UUID and folder

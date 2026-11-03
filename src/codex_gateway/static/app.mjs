@@ -105,10 +105,10 @@ function navigate(view, changeHash = true) {
 function renderConnection() {
   $("connection-label").textContent =
     state.online === null
-      ? "Checking gateway"
+      ? "Checking service"
       : state.online
-        ? "Gateway online"
-        : "Gateway offline";
+        ? "Service online"
+        : "Service offline";
   $("connection-description").textContent = "No sign-in required";
   renderSettings();
 }
@@ -126,7 +126,7 @@ function renderOverview() {
   $("runs-count").textContent = overview?.total_runs ?? "—";
   $("workspace-label").textContent = overview
     ? folderName(overview.workspace)
-    : "Personal gateway";
+    : "Personal workspace";
   $("workspace-label").title = overview?.workspace || "";
   $("workspace-policy").textContent = overview
     ? `${overview.sandbox === "read-only" ? "Read only" : "Workspace write"} · ${folderName(overview.workspace)}`
@@ -235,8 +235,6 @@ function applyTarget() {
     : "";
   $("target-title").title = thread?.title || "";
   $("clear-target").hidden = !thread;
-  if (document.activeElement !== $("manual-thread"))
-    $("manual-thread").value = thread?.thread_id || "";
   document
     .querySelector(".target-icon")
     .replaceChildren(icon(thread ? "message" : "plus"));
@@ -254,7 +252,7 @@ function applyTarget() {
   $("submission-note").textContent = busy
     ? "This thread has a run in progress. Wait for it to finish or stop the run."
     : thread && !thread.can_send
-      ? "This thread is not available for a new prompt from this gateway."
+      ? "This thread is not available for a new prompt."
       : "Your response runs in the background. You can keep an eye on it here.";
   renderThreads();
 }
@@ -582,7 +580,7 @@ function renderThreadActivity() {
     "thread-activity-intro",
     thread.events.length
       ? `All ${thread.events.length} recorded events across this conversation. Latest status: ${STATUS_LABELS[thread.status] || thread.status}.`
-      : "No gateway activity is recorded yet. Send a prompt to this thread to begin.",
+      : "No activity is recorded yet. Send a prompt to this thread to begin.",
   );
   $("output-thread").prepend(intro);
   $("copy-output").disabled = !thread.events.length;
@@ -874,14 +872,14 @@ async function checkHealth() {
     $("health-status").className = "health-status online";
     $("health-status").replaceChildren(
       el("span", "status-dot"),
-      document.createTextNode("Gateway online"),
+      document.createTextNode("Service online"),
     );
   } catch {
     state.online = false;
     $("health-status").className = "health-status offline";
     $("health-status").replaceChildren(
       el("span", "status-dot"),
-      document.createTextNode("Gateway offline"),
+      document.createTextNode("Service offline"),
     );
   }
   renderConnection();
@@ -937,20 +935,6 @@ $("prompt").addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
     event.preventDefault();
     $("prompt-form").requestSubmit();
-  }
-});
-$("use-thread-id").addEventListener("click", async () => {
-  const id = $("manual-thread").value.trim();
-  if (!id) return;
-  $("use-thread-id").disabled = true;
-  try {
-    await selectThread(
-      await client.request(`/v1/threads/${encodeURIComponent(id)}/info`),
-    );
-  } catch (error) {
-    report(error);
-  } finally {
-    $("use-thread-id").disabled = false;
   }
 });
 const examples = {

@@ -846,47 +846,6 @@ textarea#prompt::placeholder {
   background: #f0f4e8;
   border-color: #d8e1c8;
 }
-.advanced {
-  border-top: 1px solid #f0f1eb;
-  padding-top: 10px;
-  font-size: 11px;
-  color: #6b7360;
-}
-.advanced summary {
-  list-style: none;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  padding: 3px 0;
-}
-.advanced summary::-webkit-details-marker {
-  display: none;
-}
-.advanced[open] summary .icon {
-  transform: rotate(90deg);
-}
-.advanced > label {
-  display: block;
-  font-size: 11px;
-  margin: 11px 0 6px;
-}
-.input-with-action {
-  display: flex;
-  gap: 7px;
-}
-.input-with-action input {
-  min-width: 0;
-  flex: 1;
-  font-size: 12px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  padding: 9px;
-}
-.input-with-action .button {
-  font-size: 11px;
-  padding: 4px 8px;
-}
 .composer-footer {
   display: flex;
   align-items: center;

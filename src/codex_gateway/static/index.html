@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="light" />
     <meta
       name="description"
-      content="Your Codex conversations, prompts, and progress in one workspace."
+      content="Codex Online brings your conversations, prompts, and progress into one workspace."
     />
-    <title>Codex · Gateway</title>
+    <title>Codex Online</title>
     <link rel="icon" href="{{base}}/assets/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="{{base}}/assets/styles.css" />
     <script type="module" src="{{base}}/assets/app.mjs"></script>
@@ -99,16 +99,16 @@
     <a class="skip-link" href="#main">Skip to workspace</a>
     <div class="app-shell">
       <aside class="sidebar" id="sidebar" aria-label="Workspace navigation">
-        <a class="brand" href="#workspace" aria-label="Codex Gateway home"
+        <a class="brand" href="#workspace" aria-label="Codex Online home"
           ><span class="brand-mark">c<span>›</span></span
-          ><span>Codex <span class="brand-light">Gateway</span></span
+          ><span>Codex <span class="brand-light">Online</span></span
           ><span class="version-tag">BETA</span></a
         >
         <div class="workspace-switch">
           <span class="workspace-avatar">M</span>
           <div>
             <strong>My workspace</strong
-            ><span id="workspace-label">Personal gateway</span>
+            ><span id="workspace-label">Personal workspace</span>
           </div>
           <span class="workspace-tag">LOCAL</span>
         </div>
@@ -181,7 +181,7 @@
             <span class="profile-avatar"
               ><svg class="icon"><use href="#i-settings" /></svg></span
             ><span
-              ><strong id="connection-label">Checking gateway</strong
+              ><strong id="connection-label">Checking service</strong
               ><small id="connection-description"
                 >No sign-in required</small
               ></span
@@ -209,7 +209,7 @@
           </div>
           <div class="topbar-right">
             <span id="health-status" class="health-status"
-              ><span class="status-dot"></span>Checking gateway</span
+              ><span class="status-dot"></span>Checking service</span
             ><span class="topbar-separator"></span
             ><button class="button small-button" id="top-connect">
               <svg class="icon"><use href="#i-settings" /></svg><span>Connection</span>
@@ -241,7 +241,7 @@
                 <svg class="icon"><use href="#i-refresh" /></svg>Refresh
               </button>
             </div>
-            <div class="metrics" aria-label="Gateway activity">
+            <div class="metrics" aria-label="Service activity">
               <div class="metric">
                 <span class="metric-label"
                   >TOTAL RUNS<svg class="icon">
@@ -337,25 +337,6 @@
                       Plan a feature <span>↗</span>
                     </button>
                   </div>
-                  <details class="advanced">
-                    <summary>
-                      Use a thread ID directly<svg class="icon small">
-                        <use href="#i-chevron" />
-                      </svg>
-                    </summary>
-                    <label for="manual-thread"
-                      >Existing Codex thread UUID</label
-                    >
-                    <div class="input-with-action">
-                      <input
-                        id="manual-thread"
-                        placeholder="Paste a thread UUID"
-                        autocomplete="off"
-                      /><button type="button" class="button" id="use-thread-id">
-                        Select
-                      </button>
-                    </div>
-                  </details>
                   <div class="composer-footer">
                     <span class="composer-hint"
                       ><kbd>⌘</kbd><kbd>↵</kbd> to send</span
@@ -625,7 +606,7 @@
                     ><svg class="icon"><use href="#i-settings" /></svg
                   ></span>
                   <div>
-                    <h2>Gateway access</h2>
+                    <h2>Service details</h2>
                     <p>Your direct connection to Codex.</p>
                   </div>
                 </div>

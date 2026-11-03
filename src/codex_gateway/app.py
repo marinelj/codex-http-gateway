@@ -94,7 +94,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             store.close()
 
     app = FastAPI(
-        title="Codex HTTP Gateway",
+        title="Codex Online API",
         version=__version__,
         lifespan=lifespan,
         description="Submit Codex prompts asynchronously and retrieve persistent thread output.",

@@ -46,7 +46,7 @@ export class GatewayClient {
     } catch (error) {
       if (error.name === "AbortError") throw error;
       throw new ApiError(
-        "Could not reach the gateway. Check that the service is running.",
+        "Could not reach Codex Online. Check that the service is running.",
         0,
         "network",
       );
@@ -56,7 +56,7 @@ export class GatewayClient {
       data = await response.json();
     } catch {
       throw new ApiError(
-        "The gateway returned an unexpected response.",
+        "Codex Online returned an unexpected response.",
         response.status,
         "invalid_response",
       );
