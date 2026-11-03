@@ -46,7 +46,15 @@ class Runner:
         self.settings = settings
         self.store = store
 
-    def command(self, thread_id: str | None, workspace: str | None = None) -> list[str]:
+    def command(
+        self,
+        thread_id: str | None,
+        workspace: str | None = None,
+        *,
+        model: str | None = None,
+        reasoning_effort: str | None = None,
+        sandbox: str | None = None,
+    ) -> list[str]:
         args = [
             self.settings.codex_bin,
             "exec",
@@ -56,12 +64,14 @@ class Runner:
             "-C",
             workspace or str(self.settings.workspace),
             "-c",
-            f'sandbox_mode="{self.settings.sandbox}"',
+            f'sandbox_mode="{sandbox or self.settings.sandbox}"',
             "-c",
             'approval_policy="never"',
         ]
-        if self.settings.model:
-            args.extend(["--model", self.settings.model])
+        if model:
+            args.extend(["--model", model])
+        if reasoning_effort:
+            args.extend(["-c", f"model_reasoning_effort={json.dumps(reasoning_effort)}"])
         if self.settings.skip_git_repo_check:
             args.append("--skip-git-repo-check")
         if thread_id:
@@ -184,7 +194,13 @@ class Runner:
                 "-m",
                 "codex_gateway.supervisor",
                 str(lifetime_read),
-                *self.command(run["requested_thread_id"], run["workspace"]),
+                *self.command(
+                    run["requested_thread_id"],
+                    run["workspace"],
+                    model=run["model"],
+                    reasoning_effort=run["reasoning_effort"],
+                    sandbox=run["sandbox"],
+                ),
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,

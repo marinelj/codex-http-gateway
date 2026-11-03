@@ -10,6 +10,8 @@ from .config import Settings
 from .models import (
     AcceptedRun,
     CatalogThread,
+    ChatPage,
+    ModelOptions,
     Overview,
     RunDetail,
     RunPage,
@@ -17,6 +19,7 @@ from .models import (
     SubmitRun,
     ThreadDetail,
     ThreadPage,
+    UsageNotice,
 )
 from .service import Gateway
 from .store import GatewayError, Store
@@ -130,6 +133,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "workspace": str(settings.workspace),
             "sandbox": settings.sandbox,
             "model": settings.model,
+            "reasoning_effort": settings.reasoning_effort,
             "workers": settings.workers,
             "max_pending_runs": settings.max_pending_runs,
             "allow_other_workspaces": settings.allow_other_workspaces,
@@ -144,6 +148,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         search: Annotated[str | None, Query(max_length=200)] = None,
     ):
         return await gateway(request).catalog.page(cursor, limit, search)
+
+    @router.get("/models", response_model=ModelOptions, tags=["workspace"])
+    async def models(request: Request):
+        return await gateway(request).catalog.model_options()
+
+    @router.get("/usage", response_model=UsageNotice, tags=["workspace"])
+    async def usage(request: Request):
+        return await gateway(request).catalog.usage()
+
+    @router.get("/threads/{thread_id}/messages", response_model=ChatPage, tags=["threads"])
+    async def messages(
+        thread_id: UUID,
+        request: Request,
+        cursor: Annotated[str | None, Query(max_length=4000)] = None,
+        limit: Annotated[int, Query(ge=1, le=50)] = 20,
+    ):
+        return await gateway(request).catalog.messages(str(thread_id), cursor, limit)
 
     @router.get("/threads/{thread_id}/info", response_model=CatalogThread, tags=["threads"])
     async def thread_info(thread_id: UUID, request: Request):

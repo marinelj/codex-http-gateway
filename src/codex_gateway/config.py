@@ -22,8 +22,9 @@ class Settings(BaseSettings):
         default_factory=lambda: Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex")))
     )
     codex_bin: str = "codex"
-    sandbox: Literal["read-only", "workspace-write"] = "read-only"
+    sandbox: Literal["read-only", "workspace-write", "danger-full-access"] = "danger-full-access"
     model: str | None = None
+    reasoning_effort: str | None = None
     proxy_url: str | None = None
     workers: int = Field(default=1, ge=1, le=16)
     max_pending_runs: int = Field(default=64, ge=1, le=10000)

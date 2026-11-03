@@ -3,8 +3,8 @@
 A small, persistent HTTP service for submitting prompts to the **Codex CLI** and polling
 thread status and output. New conversations and follow-up prompts use the same API.
 
-Includes a responsive web console for active threads, prompt submission, live answers,
-tool activity, whole-thread output, cancellation, history, and connection details.
+Includes a responsive messaging console with conversation bubbles, saved Codex history,
+model and effort selectors, remaining usage limits, activity, cancellation, and run history.
 
 ```text
 Client → HTTP :8080 → gateway → codex exec --json
@@ -46,16 +46,33 @@ means non-archived; it does not mean every listed thread is currently generating
 Runtime activity in a different Codex process is not necessarily visible to this client.
 
 Click a thread to select its ID and project folder. Enter a prompt, then click
-**Send to this thread** (or press Command/Ctrl+Enter). Selecting a thread does not
-submit the draft by itself. **New conversation** starts in the configured default
-workspace.
+the round **Send message** button (or press Enter). Shift+Enter adds a new line.
+Selecting a thread does not submit the draft by itself. **New conversation** starts
+in the configured default workspace.
 
-The response panel provides **Answer**, **Activity** for one run, **Thread** for
-all gateway-recorded activity on that conversation, and **JSON**. Runs update
-automatically. Copy output, download the full selected transcript, stop an active
-run, or continue the conversation. The activity panel shows the latest 500 events;
-JSON downloads include every recorded event. History provides status filters and
-pagination. The connection screen shows the workspace, sandbox, model and service limits.
+The conversation shows your messages on the right and Codex replies on the left,
+with timestamps, a live thinking indicator, and a bottom composer. Saved messages
+from Codex CLI and app conversations load through the supported history API;
+**Load earlier messages** pages back through older turns. A **Stop** button cancels
+an active message. Selecting a different thread preserves the current draft.
+
+Choose a **Model** and **Effort** before sending. The lists come from your installed
+Codex account, and effort options update for each model. Choices apply to the next
+message, including resumed conversations. Each run records its model, effort, project
+folder and permissions. The API also accepts optional `model` and `reasoning_effort`;
+the original `{prompt, thread_id}` request remains valid.
+
+The **Usage left** notice board shows remaining percentages and reset times for
+Codex's reported limits, including 5-hour and weekly windows when available. It
+refreshes automatically and reports unavailable data explicitly. This is remaining
+account allowance, not a count of messages or context tokens. No account identifiers
+or authentication credentials are returned by this endpoint.
+
+**Activity & run details** expands the original Answer, Activity, Thread and JSON
+views. Copy output, download a transcript, or inspect individual runs. Raw event
+history covers gateway submissions; saved chat history also includes earlier Codex
+messages. History provides status filters and pagination, and the connection screen
+shows the workspace, permissions, model defaults and service limits.
 
 Prompts and model output are rendered as text, without executing model-supplied
 HTML. All scripts, styles and icons are served locally; no third-party assets
@@ -121,13 +138,16 @@ and strictly increasing; the latest status is returned even with an empty event 
 
 | Method | Path | Result |
 | --- | --- | --- |
-| POST | `/v1/runs` | Accept `{prompt, thread_id}`; null or omitted ID starts a thread |
+| POST | `/v1/runs` | Accept `{prompt, thread_id, model?, reasoning_effort?}`; null or omitted thread ID starts a thread |
 | GET | `/v1/threads` | Non-archived Codex catalog; optional `cursor`, `limit`, `search` |
 | GET | `/v1/threads/{thread_id}/info` | Saved title, project folder and availability |
+| GET | `/v1/threads/{thread_id}/messages` | Saved Codex messages; optional `cursor`, `limit` |
 | GET | `/v1/threads/{thread_id}` | Latest status and paginated events across the thread |
 | GET | `/v1/runs/{run_id}` | One prompt, status, output and paginated events |
 | GET | `/v1/runs` | Paginated run summaries; optional `thread_id`, `after`, `limit`, `order=asc\|desc` |
 | GET | `/v1/overview` | Workspace settings and aggregate run counts |
+| GET | `/v1/models` | Available account models, supported efforts, and current defaults |
+| GET | `/v1/usage` | Remaining account limits and reset times, cached for up to one minute |
 | POST | `/v1/runs/{run_id}/cancel` | Stop a queued or active run; safe to repeat |
 | GET | `/healthz` | Service liveness; does not verify model access or authentication |
 
@@ -142,8 +162,9 @@ was recorded, not that Codex finished successfully. Check the eventual status.
 ## Thread continuity and concurrency
 
 - Existing local CLI threads can be continued in the configured workspace, or in
-  their original folders when other workspaces are enabled. Historical output from before adoption is not imported:
-  the inquiry response declares `history_scope: "gateway"`.
+  their original folders when other workspaces are enabled. Raw event inquiry declares
+  `history_scope: "gateway"`; the separate messages endpoint reads saved Codex chat
+  history with `history_scope: "codex"`.
 - Missing/archived local sessions return `404` or `409`; another workspace returns
   `409` unless cross-workspace continuation is enabled.
   Cloud task IDs and arbitrary numbers are not local Codex thread UUIDs.
@@ -174,8 +195,9 @@ CLI `--host`, `--port`, `--workspace`, and `--data-dir` override these values.
 | `GATEWAY_DATA_DIR` | `~/.local/state/codex-http-gateway` | SQLite database and instance lock |
 | `GATEWAY_CODEX_HOME` | `CODEX_HOME` or `~/.codex` | Saved CLI auth, configuration and sessions |
 | `GATEWAY_CODEX_BIN` | `codex` | CLI executable |
-| `GATEWAY_SANDBOX` | `read-only` | `read-only` or `workspace-write` |
-| `GATEWAY_MODEL` | CLI configuration | Optional model override |
+| `GATEWAY_SANDBOX` | `danger-full-access` | Full access by default for new and resumed conversations; also accepts `read-only` or `workspace-write` |
+| `GATEWAY_MODEL` | CLI configuration | Optional default model override |
+| `GATEWAY_REASONING_EFFORT` | CLI configuration | Optional default effort override |
 | `GATEWAY_PROXY_URL` | inherited proxy environment | Optional HTTP(S) proxy for CLI network requests |
 | `GATEWAY_WORKERS` | `1` | Background CLI workers |
 | `GATEWAY_MAX_PENDING_RUNS` | `64` | Active plus queued run limit |
@@ -215,7 +237,9 @@ URLs include the public prefix.
 This is a single-operator service with no gateway authentication. Anyone who can
 reach the API can submit prompts and read its shared thread history. Codex uses the
 host's local account and the configured sandbox. Approval requests are disabled for
-headless execution, while the configured Codex sandbox remains enabled.
+headless execution. The default permission is **Full access**: the CLI runs with
+`sandbox_mode="danger-full-access"` and `approval_policy="never"`. This applies to
+both new and resumed conversations. Configure a narrower sandbox when desired.
 
 ## Development
 

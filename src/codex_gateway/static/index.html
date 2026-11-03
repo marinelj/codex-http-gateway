@@ -228,19 +228,54 @@
             </button>
           </div>
           <section id="view-workspace" class="view">
-            <div class="page-heading">
-              <div>
-                <div class="eyebrow">CODEX, CONNECTED.</div>
-                <h1>Your ideas. In motion.</h1>
-                <p>
-                  A place for your prompts, conversations, and everything that
-                  follows.
-                </p>
-              </div>
-              <button class="button" id="refresh-workspace">
-                <svg class="icon"><use href="#i-refresh" /></svg>Refresh
-              </button>
+            <div class="page-heading conversation-heading">
+              <div><div class="eyebrow">LET’S KEEP IT GOING.</div><h1>Conversations</h1></div>
+              <aside class="usage-board" aria-label="Codex usage notice board">
+                <div class="usage-board-title"><svg class="icon small"><use href="#i-clock" /></svg><span>Usage left</span><span id="usage-updated"></span></div>
+                <div class="usage-windows" id="usage-windows"><span class="usage-unavailable">Checking your limits…</span></div>
+              </aside>
+              <button class="button" id="refresh-workspace"><svg class="icon"><use href="#i-refresh" /></svg>Refresh</button>
             </div>
+            <section class="chat-shell" aria-labelledby="target-title">
+              <header class="chat-header">
+                <span class="chat-avatar target-icon"><svg class="icon"><use href="#i-message" /></svg></span>
+                <div class="chat-identity">
+                  <h2 id="target-title">New conversation</h2>
+                  <p id="composer-description">Your coding companion, a message away.</p>
+                  <span id="target-subtitle" class="sr-only">A fresh start with Codex</span>
+                </div>
+                <span class="permission-pill" id="chat-permission"><svg class="icon small"><use href="#i-check" /></svg><span>Full access</span></span>
+                <button id="chat-cancel-run" class="button danger small-button" hidden><svg class="icon small"><use href="#i-stop" /></svg>Stop</button>
+                <button class="icon-button" type="button" id="clear-target" aria-label="Start a new conversation" title="Start a new conversation" hidden><svg class="icon"><use href="#i-plus" /></svg></button>
+              </header>
+              <div class="chat-scroll" id="chat-scroll" role="log" aria-label="Conversation messages" aria-live="polite" aria-relevant="additions text">
+                <button class="older-messages" id="older-messages" hidden>Load earlier messages</button>
+                <div class="chat-empty" id="chat-empty">
+                  <div class="chat-empty-mark">c<span>›</span></div>
+                  <h3>A little hello goes a long way.</h3>
+                  <p>Ask a question, share an idea, or pick up where you left off.</p>
+                  <div class="prompt-examples" id="prompt-examples">
+                    <button type="button" class="example-chip" data-example="hello">Say hello <span>↗</span></button>
+                    <button type="button" class="example-chip" data-example="review">Review my project <span>↗</span></button>
+                    <button type="button" class="example-chip" data-example="plan">Plan a feature <span>↗</span></button>
+                  </div>
+                </div>
+                <div class="chat-messages" id="chat-messages"></div>
+              </div>
+              <form id="prompt-form" class="chat-composer">
+                <div class="chat-options">
+                  <label class="chat-option" for="model-select"><svg class="icon small"><use href="#i-spark" /></svg><span>Model</span><select id="model-select" aria-label="Model" disabled><option>Loading models…</option></select></label>
+                  <label class="chat-option effort-option" for="effort-select"><span>Effort</span><select id="effort-select" aria-label="Reasoning effort" disabled><option>Loading…</option></select></label>
+                  <span class="chat-status" id="chat-status">Ready when you are</span>
+                </div>
+                <div class="message-input-row">
+                  <label class="sr-only" for="prompt">Message Codex</label>
+                  <textarea id="prompt" name="prompt" placeholder="Message Codex…" maxlength="100000" rows="1" required></textarea>
+                  <button type="submit" class="chat-send" id="submit-prompt" disabled aria-label="Send message" title="Send message"><span class="sr-only">Send message</span><svg class="icon"><use href="#i-send" /></svg></button>
+                </div>
+                <div class="chat-composer-meta"><span id="submission-note">Enter to send · Shift + Enter for a new line</span><span id="prompt-count">0 / 100,000</span></div>
+              </form>
+            </section>
             <div class="metrics" aria-label="Service activity">
               <div class="metric">
                 <span class="metric-label"
@@ -265,101 +300,8 @@
                 ><span class="metric-note">Ready whenever you are</span>
               </div>
             </div>
-            <div class="workspace-grid">
-              <section
-                class="panel composer-panel"
-                aria-labelledby="composer-heading"
-              >
-                <div class="panel-heading">
-                  <div class="panel-icon">
-                    <svg class="icon"><use href="#i-spark" /></svg>
-                  </div>
-                  <div>
-                    <h2 id="composer-heading">What are we working on?</h2>
-                    <p id="composer-description">
-                      Start fresh, or pick a thread from the sidebar.
-                    </p>
-                  </div>
-                </div>
-                <form id="prompt-form">
-                  <div class="target-selector">
-                    <span class="field-label">SEND TO</span>
-                    <div class="target-card">
-                      <span class="target-icon"
-                        ><svg class="icon"><use href="#i-plus" /></svg
-                      ></span>
-                      <div class="target-text">
-                        <strong id="target-title">New conversation</strong
-                        ><span id="target-subtitle"
-                          >A fresh start with Codex</span
-                        >
-                      </div>
-                      <button
-                        class="icon-button"
-                        type="button"
-                        id="clear-target"
-                        aria-label="Start a new conversation"
-                        title="Start a new conversation"
-                        hidden
-                      >
-                        <svg class="icon"><use href="#i-close" /></svg>
-                      </button>
-                    </div>
-                  </div>
-                  <label class="field-label prompt-label" for="prompt"
-                    >YOUR PROMPT</label
-                  ><textarea
-                    id="prompt"
-                    name="prompt"
-                    placeholder="Describe a task, ask a question, or just say hello…"
-                    maxlength="100000"
-                    required
-                  ></textarea>
-                  <div class="prompt-examples" id="prompt-examples">
-                    <span>Try a little inspiration</span
-                    ><button
-                      type="button"
-                      class="example-chip"
-                      data-example="hello"
-                    >
-                      Say hello <span>↗</span></button
-                    ><button
-                      type="button"
-                      class="example-chip"
-                      data-example="review"
-                    >
-                      Review my project <span>↗</span></button
-                    ><button
-                      type="button"
-                      class="example-chip"
-                      data-example="plan"
-                    >
-                      Plan a feature <span>↗</span>
-                    </button>
-                  </div>
-                  <div class="composer-footer">
-                    <span class="composer-hint"
-                      ><kbd>⌘</kbd><kbd>↵</kbd> to send</span
-                    ><span id="prompt-count">0 / 100,000</span>
-                  </div>
-                  <button
-                    type="submit"
-                    class="button primary submit-button"
-                    id="submit-prompt"
-                  >
-                    <span>Send prompt</span
-                    ><svg class="icon"><use href="#i-arrow" /></svg>
-                  </button>
-                  <p class="form-note" id="submission-note">
-                    Your response runs in the background. You can keep an eye on
-                    it here.
-                  </p>
-                </form>
-              </section>
-              <section
-                class="panel response-panel"
-                aria-labelledby="response-heading"
-              >
+            <details class="panel response-panel technical-panel" id="technical-panel">
+              <summary class="technical-summary">Activity &amp; run details <svg class="icon small"><use href="#i-chevron" /></svg></summary>
                 <div class="response-heading">
                   <h2 id="response-heading">
                     <svg class="icon"><use href="#i-message" /></svg>Response
@@ -494,8 +436,7 @@
                   </summary>
                   <dl id="run-metadata"></dl>
                 </details>
-              </section>
-            </div>
+            </details>
             <section class="recent-section">
               <div class="section-heading">
                 <div>

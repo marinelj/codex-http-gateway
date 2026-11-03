@@ -15,6 +15,8 @@ class SubmitRun(BaseModel):
     model_config = ConfigDict(extra="forbid")
     prompt: str = Field(min_length=1, max_length=100000)
     thread_id: UUID | None = None
+    model: str | None = Field(default=None, min_length=1, max_length=200)
+    reasoning_effort: str | None = Field(default=None, min_length=1, max_length=64)
 
     @field_validator("prompt")
     @classmethod
@@ -33,6 +35,9 @@ class RunSummary(BaseModel):
     run_id: str
     prompt_preview: str
     workspace: str
+    model: str | None = None
+    reasoning_effort: str | None = None
+    sandbox: str | None = None
     thread_id: str | None
     status: RunStatus
     created_at: str
@@ -106,9 +111,63 @@ class Overview(BaseModel):
     workspace: str
     sandbox: str
     model: str | None
+    reasoning_effort: str | None = None
     workers: int
     max_pending_runs: int
     allow_other_workspaces: bool
     total_runs: int
     total_threads: int
     statuses: dict[str, int]
+
+
+class EffortOption(BaseModel):
+    id: str
+    description: str
+
+
+class ModelOption(BaseModel):
+    id: str
+    name: str
+    description: str
+    default_effort: str
+    efforts: list[EffortOption]
+
+
+class ModelOptions(BaseModel):
+    models: list[ModelOption]
+    default_model: str
+    default_effort: str
+
+
+class ChatMessage(BaseModel):
+    id: str
+    turn_id: str
+    role: Literal["user", "assistant"]
+    text: str
+    created_at: int | None
+    status: str
+
+
+class ChatPage(BaseModel):
+    thread_id: str
+    messages: list[ChatMessage]
+    next_cursor: str | None
+    has_more: bool
+    history_scope: Literal["codex"] = "codex"
+
+
+class UsageWindow(BaseModel):
+    id: str
+    name: str
+    scope: str
+    remaining_percent: float
+    resets_at: int | None
+    window_minutes: int | None
+
+
+class UsageNotice(BaseModel):
+    available: bool
+    updated_at: str
+    windows: list[UsageWindow]
+    resets_available: int | None = None
+    message: str | None = None

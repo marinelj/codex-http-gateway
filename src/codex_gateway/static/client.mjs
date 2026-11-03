@@ -76,12 +76,55 @@ export class GatewayClient {
     return data;
   }
 
-  submit(prompt, threadId, key) {
+  submit(prompt, threadId, key, { model, reasoning_effort } = {}) {
     return this.request("/v1/runs", {
-      body: { prompt, thread_id: threadId || null },
+      body: {
+        prompt,
+        thread_id: threadId || null,
+        ...(model ? { model } : {}),
+        ...(reasoning_effort ? { reasoning_effort } : {}),
+      },
       key,
     });
   }
+}
+
+export function conversationMessages(messages, run) {
+  if (!run) return messages;
+  const result = messages.map((message) => ({ ...message }));
+  const start = Date.parse(run.created_at) - 1000;
+  const end = run.finished_at ? Date.parse(run.finished_at) + 1000 : Infinity;
+  const match = result.findLast((message) =>
+    message.role === "user" && message.text.trim() === run.prompt.trim() &&
+    (!message.created_at || (message.created_at * 1000 >= start && message.created_at * 1000 <= end)),
+  );
+  const assistant = {
+    id: run.run_id + "-assistant",
+    turn_id: match?.turn_id || run.run_id,
+    role: "assistant",
+    text: run.final_output || "",
+    created_at: run.finished_at ? Date.parse(run.finished_at) / 1000 : null,
+    status: run.status,
+    model: run.model,
+    reasoning_effort: run.reasoning_effort,
+    error: run.error?.message,
+  };
+  if (match) {
+    const index = result.findLastIndex((message) => message.turn_id === match.turn_id);
+    const answer = result.findLastIndex((message) => message.turn_id === match.turn_id && message.role === "assistant");
+    if (answer >= 0) {
+      result[answer] = { ...result[answer], ...assistant, text: run.final_output || result[answer].text };
+    } else result.splice(index + 1, 0, assistant);
+    match.status = run.status;
+    return result;
+  }
+  const latest = result.findLast((message) => message.role === "user" && message.created_at);
+  if (!ACTIVE.has(run.status) && latest && latest.created_at * 1000 > end) return result;
+  result.push({
+    id: run.run_id + "-user", turn_id: run.run_id, role: "user", text: run.prompt,
+    created_at: Date.parse(run.created_at) / 1000, status: run.status,
+  }, assistant);
+  return result;
 }
 
 export function duration(run, clock = Date.now()) {

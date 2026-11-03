@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   ApiError,
   GatewayClient,
+  conversationMessages,
   duration,
   eventLabel,
   eventPreview,
@@ -42,6 +43,33 @@ test("new conversations send a null ID without a credential", async () => {
     },
   );
   await client.submit("hello");
+});
+
+test("model and effort choices accompany the selected thread", async () => {
+  const client = new GatewayClient("/codex", async (url, options) => {
+    assert.deepEqual(JSON.parse(options.body), {
+      prompt: "Continue our plan", thread_id: "selected-thread", model: "chosen-model", reasoning_effort: "high",
+    });
+    return { ok: true, json: async () => ({}) };
+  });
+  await client.submit("Continue our plan", "selected-thread", "key", { model: "chosen-model", reasoning_effort: "high" });
+});
+
+test("chat reconciles a live reply with saved history without duplicating messages", () => {
+  const stamp = Date.parse("2026-01-01T00:00:00Z") / 1000;
+  const history = [
+    { id: "u", turn_id: "turn", role: "user", text: "Hello", created_at: stamp },
+    { id: "a", turn_id: "turn", role: "assistant", text: "Earlier text", created_at: stamp + 2 },
+  ];
+  const run = { run_id: "run", prompt: "Hello", status: "completed", created_at: "2026-01-01T00:00:00Z", finished_at: "2026-01-01T00:00:05Z", final_output: "Hello back", model: "chosen-model", reasoning_effort: "high" };
+  const result = conversationMessages(history, run);
+  assert.equal(result.length, 2);
+  assert.equal(result[1].text, "Hello back");
+  assert.equal(result[1].model, "chosen-model");
+  assert.equal(history[1].text, "Earlier text");
+  const repeated = conversationMessages(history, { ...run, created_at: "2026-01-01T00:01:00Z", finished_at: null, status: "running", final_output: null });
+  assert.equal(repeated.length, 4);
+  assert.equal(repeated[3].status, "running");
 });
 
 test("API errors retain status and user-readable messages", async () => {

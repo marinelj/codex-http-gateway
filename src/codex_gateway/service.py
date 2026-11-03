@@ -46,7 +46,7 @@ class Gateway:
 
     async def submit(self, request: SubmitRun, key: str | None) -> dict:
         thread_id = str(request.thread_id) if request.thread_id else None
-        digest = fingerprint(request.prompt, thread_id)
+        digest = fingerprint(request.prompt, thread_id, request.model, request.reasoning_effort)
         async with self.lock:
             if self.closing:
                 raise GatewayError(503, "shutting_down", "Service is shutting down")
@@ -68,7 +68,18 @@ class Gateway:
                     )
                 workspace = thread["workspace"]
                 await asyncio.to_thread(validate_session, self.settings, thread_id, Path(workspace))
-            run = self.store.create(request.prompt, thread_id, key, workspace)
+            model, effort = await self.catalog.resolve_options(
+                request.model, request.reasoning_effort
+            )
+            run = self.store.create(
+                request.prompt,
+                thread_id,
+                key,
+                workspace,
+                model=model,
+                reasoning_effort=effort,
+                digest=digest,
+            )
             signal = self.ready[run["run_id"]] = asyncio.Event()
             self.settled[run["run_id"]] = asyncio.Event()
             self.queue.put_nowait(run["run_id"])

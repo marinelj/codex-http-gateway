@@ -25,8 +25,16 @@ def now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def fingerprint(prompt: str, thread_id: str | None) -> str:
-    return hashlib.sha256(json.dumps([prompt, thread_id]).encode()).hexdigest()
+def fingerprint(
+    prompt: str,
+    thread_id: str | None,
+    model: str | None = None,
+    reasoning_effort: str | None = None,
+) -> str:
+    fields = [prompt, thread_id]
+    if model is not None or reasoning_effort is not None:
+        fields.extend([model, reasoning_effort])
+    return hashlib.sha256(json.dumps(fields).encode()).hexdigest()
 
 
 class Store:
@@ -34,6 +42,7 @@ class Store:
 
     def __init__(self, settings: Settings):
         self.workspace = str(settings.workspace)
+        self.settings = settings
         self.lock_fd = os.open(settings.data_dir / "instance.lock", os.O_CREAT | os.O_RDWR, 0o600)
         try:
             fcntl.flock(self.lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -59,6 +68,9 @@ class Store:
                     thread_id TEXT REFERENCES threads(thread_id),
                     prompt TEXT NOT NULL,
                     workspace TEXT NOT NULL,
+                    model TEXT,
+                    reasoning_effort TEXT,
+                    sandbox TEXT,
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     started_at TEXT,
@@ -97,13 +109,16 @@ class Store:
                 version = self.db.execute(
                     "SELECT value FROM metadata WHERE key='schema_version'"
                 ).fetchone()
-                if version and version[0] not in {"1", "2"}:
+                if version and version[0] not in {"1", "2", "3"}:
                     raise RuntimeError("Unsupported database schema version")
                 columns = {row[1] for row in self.db.execute("PRAGMA table_info(runs)")}
                 if "workspace" not in columns:
                     self.db.execute("ALTER TABLE runs ADD COLUMN workspace TEXT")
                     self.db.execute("UPDATE runs SET workspace=?", (self.workspace,))
-                self.db.execute("INSERT OR REPLACE INTO metadata VALUES ('schema_version', '2')")
+                for column in ("model", "reasoning_effort", "sandbox"):
+                    if column not in columns:
+                        self.db.execute(f"ALTER TABLE runs ADD COLUMN {column} TEXT")
+                self.db.execute("INSERT OR REPLACE INTO metadata VALUES ('schema_version', '3')")
         except BaseException:
             if hasattr(self, "db"):
                 self.db.close()
@@ -146,7 +161,15 @@ class Store:
         ).fetchone()[0]
 
     def create(
-        self, prompt: str, thread_id: str | None, key: str | None, workspace: str | None = None
+        self,
+        prompt: str,
+        thread_id: str | None,
+        key: str | None,
+        workspace: str | None = None,
+        *,
+        model: str | None = None,
+        reasoning_effort: str | None = None,
+        digest: str | None = None,
     ) -> dict[str, Any]:
         run_id = "run_" + uuid4().hex
         try:
@@ -157,18 +180,22 @@ class Store:
                     )
                 self.db.execute(
                     """INSERT INTO runs
-                    (run_id,requested_thread_id,thread_id,prompt,workspace,status,created_at,
-                     idempotency_key,fingerprint) VALUES (?,?,?,?,?,?,?,?,?)""",
+                    (run_id,requested_thread_id,thread_id,prompt,workspace,model,reasoning_effort,
+                     sandbox,status,created_at,idempotency_key,fingerprint)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
                         run_id,
                         thread_id,
                         thread_id,
                         prompt,
                         workspace or self.workspace,
+                        model,
+                        reasoning_effort,
+                        self.settings.sandbox,
                         "queued",
                         now(),
                         key,
-                        fingerprint(prompt, thread_id),
+                        digest or fingerprint(prompt, thread_id),
                     ),
                 )
         except sqlite3.IntegrityError:

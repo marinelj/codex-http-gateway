@@ -2,6 +2,7 @@ import {
   ACTIVE,
   STATUS_LABELS,
   GatewayClient,
+  conversationMessages,
   duration,
   eventLabel,
   eventPreview,
@@ -36,6 +37,23 @@ const state = {
   autoTargetRun: null,
   threadData: null,
   threadLoading: null,
+  models: [],
+  modelDefaults: null,
+  model: null,
+  effort: null,
+  preferences: new Map(),
+  messages: [],
+  messageThread: null,
+  messageCursor: null,
+  messageHasMore: false,
+  messagePages: 0,
+  messageVersion: 0,
+  messageLoading: null,
+  messageError: null,
+  chatSignature: "",
+  scrollChat: true,
+  pending: null,
+  usage: null,
 };
 const client = new GatewayClient(base);
 
@@ -93,7 +111,7 @@ function navigate(view, changeHash = true) {
     else button.removeAttribute("aria-current");
   });
   $("breadcrumb-title").textContent = {
-    workspace: "Overview",
+    workspace: "Conversations",
     runs: "Run history",
     connection: "Connection",
   }[view];
@@ -129,7 +147,7 @@ function renderOverview() {
     : "Personal workspace";
   $("workspace-label").title = overview?.workspace || "";
   $("workspace-policy").textContent = overview
-    ? `${overview.sandbox === "read-only" ? "Read only" : "Workspace write"} · ${folderName(overview.workspace)}`
+    ? `${permissionLabel(overview.sandbox)} · ${folderName(overview.workspace)}`
     : "Connected to your local Codex CLI";
   renderSettings();
 }
@@ -145,9 +163,7 @@ function renderSettings() {
     [
       "Access policy",
       info
-        ? info.sandbox === "read-only"
-          ? "Read only"
-          : "Workspace write"
+        ? permissionLabel(info.sandbox)
         : "—",
     ],
     [
@@ -158,7 +174,8 @@ function renderSettings() {
           : "Current workspace only"
         : "—",
     ],
-    ["Model", info ? info.model || "Codex CLI configuration" : "—"],
+    ["Default model", state.modelDefaults?.default_model || info?.model || "Loading…"],
+    ["Default effort", state.modelDefaults?.default_effort || "Loading…"],
     ["Concurrent runs", info ? String(info.workers) : "—"],
     ["Run capacity", info ? String(info.max_pending_runs) : "—"],
     ["Version", info?.version || "—"],
@@ -170,6 +187,229 @@ function renderSettings() {
       return row;
     }),
   );
+}
+
+async function loadUsage() {
+  try {
+    state.usage = await client.request("/v1/usage");
+  } catch {
+    state.usage = { available: false, windows: [], message: "Usage limits are unavailable right now." };
+  }
+  renderUsage();
+}
+function renderUsage() {
+  const usage = state.usage;
+  if (!usage) return;
+  const updated = $("usage-updated");
+  updated.textContent = usage.available ? "Live" : "Unavailable";
+  updated.title = usage.updated_at ? "Last checked " + new Date(usage.updated_at).toLocaleString() : "";
+  if (!usage.available) {
+    $("usage-windows").replaceChildren(el("span", "usage-unavailable", usage.message || "This account does not report usage limits."));
+    return;
+  }
+  $("usage-windows").replaceChildren(...usage.windows.map((window) => {
+    const card = el("div", "usage-window");
+    const heading = el("div", "usage-window-heading");
+    const label = window.scope === "Codex" ? window.name : `${window.scope} · ${window.name}`;
+    heading.append(el("span", "", label), el("strong", "", `${Math.round(window.remaining_percent)}%`));
+    const progress = el("progress", "usage-progress" + (window.remaining_percent <= 15 ? " low" : ""));
+    progress.max = 100;
+    progress.value = window.remaining_percent;
+    progress.setAttribute("aria-label", `${label}: ${window.remaining_percent}% remaining`);
+    const reset = window.resets_at ? new Date(window.resets_at * 1000) : null;
+    const seconds = reset ? Math.max(0, (reset.getTime() - Date.now()) / 1000) : null;
+    let resetText = "Reset time unavailable";
+    if (seconds !== null) {
+      const totalMinutes = Math.ceil(seconds / 60);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      resetText = seconds === 0 ? "Reset due" : hours >= 24 ? `Resets in ${Math.floor(hours / 24)}d ${hours % 24}h` : hours ? `Resets in ${hours}h ${minutes}m` : `Resets in ${minutes}m`;
+    }
+    const caption = el("small", "usage-reset", resetText);
+    if (reset) caption.title = "Resets " + reset.toLocaleString();
+    card.append(heading, progress, caption);
+    return card;
+  }));
+}
+
+function permissionLabel(sandbox) {
+  return { "danger-full-access": "Full access", "workspace-write": "Workspace write", "read-only": "Read only" }[sandbox] || sandbox;
+}
+function effortLabel(effort) {
+  return { low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Maximum", ultra: "Ultra", minimal: "Minimal", none: "None" }[effort] || effort;
+}
+async function loadModels() {
+  const options = await client.request("/v1/models");
+  if (JSON.stringify(options) === JSON.stringify(state.modelDefaults)) return;
+  state.models = options.models;
+  state.modelDefaults = options;
+  restorePreferences();
+  renderSettings();
+  applyTarget();
+}
+function restorePreferences() {
+  if (!state.models.length) return;
+  const saved = state.preferences.get(state.selectedThread?.thread_id || "new") || state.selectedThread?.latest_run;
+  const model = state.models.find((item) => item.id === saved?.model)
+    || state.models.find((item) => item.id === state.model)
+    || state.models.find((item) => item.id === state.modelDefaults.default_model)
+    || state.models[0];
+  state.model = model.id;
+  const effort = saved?.reasoning_effort || state.effort || (model.id === state.modelDefaults.default_model ? state.modelDefaults.default_effort : model.default_effort);
+  state.effort = model.efforts.some((item) => item.id === effort) ? effort : model.default_effort;
+  renderPickers();
+}
+function renderPickers() {
+  $("model-select").replaceChildren(...state.models.map((model) => {
+    const option = el("option", "", model.name);
+    option.value = model.id;
+    option.title = model.description;
+    return option;
+  }));
+  $("model-select").value = state.model;
+  $("model-select").disabled = !state.models.length;
+  const model = state.models.find((item) => item.id === state.model);
+  $("effort-select").replaceChildren(...(model?.efforts || []).map((effort) => {
+    const option = el("option", "", effortLabel(effort.id));
+    option.value = effort.id;
+    option.title = effort.description;
+    return option;
+  }));
+  $("effort-select").value = state.effort;
+  $("effort-select").disabled = !model?.efforts.length;
+  $("effort-select").title = model?.efforts.find((effort) => effort.id === state.effort)?.description || "";
+}
+function savePreferences() {
+  state.preferences.set(state.selectedThread?.thread_id || "new", { model: state.model, reasoning_effort: state.effort });
+  state.retrySubmission = null;
+}
+function setConversation(thread, reset = false) {
+  const id = thread?.thread_id || null;
+  const changed = reset || id !== state.messageThread;
+  state.selectedThread = thread;
+  if (changed) {
+    state.messageVersion++;
+    state.messageThread = id;
+    state.messages = [];
+    state.messageCursor = null;
+    state.messageHasMore = false;
+    state.messagePages = 0;
+    state.messageLoading = null;
+    state.messageError = null;
+    state.scrollChat = true;
+    state.chatSignature = "";
+    restorePreferences();
+    renderChat();
+  }
+}
+async function loadMessages(more = false) {
+  const id = state.selectedThread?.thread_id;
+  const version = state.messageVersion;
+  if (!id || state.messageLoading === version) return;
+  state.messageLoading = version;
+  $("older-messages").disabled = true;
+  try {
+    const params = new URLSearchParams({ limit: "20" });
+    if (more && state.messageCursor) params.set("cursor", state.messageCursor);
+    const page = await client.request(`/v1/threads/${encodeURIComponent(id)}/messages?${params}`);
+    if (version !== state.messageVersion) return;
+    const turns = new Set(page.messages.map((message) => message.turn_id));
+    const previous = state.messages.filter((message) => !turns.has(message.turn_id));
+    const combined = more ? [...page.messages, ...previous] : [...previous, ...page.messages];
+    state.messages = [...new Map(combined.map((message) => [message.id, message])).values()];
+    if (more || state.messagePages <= 1) {
+      state.messageCursor = page.next_cursor;
+      state.messageHasMore = page.has_more;
+    }
+    state.messagePages = more ? state.messagePages + 1 : Math.max(state.messagePages, 1);
+    state.messageError = null;
+    renderChat(more);
+  } catch (error) {
+    if (version !== state.messageVersion) return;
+    state.messageError = "Could not load earlier messages. Use Refresh to try again.";
+    renderChat();
+    report(error);
+  } finally {
+    if (state.messageLoading === version) state.messageLoading = null;
+    $("older-messages").disabled = false;
+  }
+}
+function messageBody(text) {
+  const body = el("div", "bubble-body");
+  const parts = text.split(/```[^\n]*\n([\s\S]*?)```/g);
+  parts.forEach((part, index) => {
+    if (!part) return;
+    if (index % 2) body.append(el("pre", "", part));
+    else for (const paragraph of part.split(/\n\n+/)) if (paragraph) body.append(el("p", "", paragraph));
+  });
+  return body;
+}
+function renderChat(older = false) {
+  const run = state.run && (
+    state.run.thread_id === state.selectedThread?.thread_id || (!state.run.thread_id && !state.selectedThread)
+  ) ? state.run : null;
+  let messages = conversationMessages(state.messages, run);
+  if (state.pending?.version === state.messageVersion) messages = [
+    ...messages,
+    { id: "sending", role: "user", text: state.pending.prompt, created_at: Date.parse(state.pending.created_at) / 1000, status: "sending" },
+  ];
+  const signature = JSON.stringify([messages, state.messageError, state.messageHasMore]);
+  if (signature === state.chatSignature && !state.scrollChat) return;
+  state.chatSignature = signature;
+  const scroll = $("chat-scroll");
+  const previousHeight = scroll.scrollHeight;
+  const previousTop = scroll.scrollTop;
+  const atBottom = previousHeight - previousTop - scroll.clientHeight < 90;
+  const nodes = [];
+  let day;
+  for (const message of messages) {
+    const date = message.created_at ? new Date(message.created_at * 1000) : null;
+    const nextDay = date?.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+    if (nextDay && nextDay !== day) {
+      nodes.push(el("div", "chat-day", nextDay));
+      day = nextDay;
+    }
+    const row = el("div", "message-row " + message.role);
+    if (message.role === "assistant") row.append(el("span", "message-avatar", "c›"));
+    const bubble = el("article", "message-bubble");
+    bubble.setAttribute("aria-label", message.role === "user" ? "Your message" : "Codex reply");
+    if (message.text) bubble.append(messageBody(message.text));
+    else if (ACTIVE.has(message.status)) {
+      const typing = el("div", "typing-indicator");
+      typing.setAttribute("aria-label", "Codex is thinking");
+      typing.append(el("i"), el("i"), el("i"), el("span", "", "Thinking…"));
+      bubble.append(typing);
+    } else bubble.append(el("p", "bubble-notice", STATUS_LABELS[message.status] || "No answer was recorded."));
+    if (message.error) bubble.append(el("p", "bubble-error", message.error));
+    const meta = el("div", "bubble-meta");
+    const model = state.models.find((item) => item.id === message.model);
+    if (message.role === "assistant") meta.append(el("span", "bubble-sender", "Codex"));
+    if (message.model) meta.append(el("span", "bubble-model", `${model?.name || message.model} · ${effortLabel(message.reasoning_effort)}`));
+    if (date) meta.append(el("time", "", date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })));
+    if (message.role === "user") meta.append(el("span", "message-check", message.status === "sending" ? "Sending…" : "✓"));
+    else if (message.text) {
+      const copy = el("button", "bubble-copy");
+      copy.type = "button";
+      copy.title = "Copy reply";
+      copy.setAttribute("aria-label", "Copy reply");
+      copy.append(icon("copy"));
+      copy.addEventListener("click", () => copyText(message.text));
+      meta.append(copy);
+    }
+    bubble.append(meta);
+    row.append(bubble);
+    nodes.push(row);
+  }
+  $("chat-messages").replaceChildren(...nodes);
+  $("chat-empty").hidden = messages.length > 0;
+  $("chat-empty").querySelector("h3").textContent = state.selectedThread ? "Keep the conversation going." : "A little hello goes a long way.";
+  $("chat-empty").querySelector("p").textContent = state.messageError || (state.selectedThread
+    ? "Send your next message to this conversation."
+    : "Ask a question, share an idea, or pick up where you left off.");
+  $("older-messages").hidden = !state.messageHasMore;
+  if (state.scrollChat || (atBottom && !older)) scroll.scrollTop = scroll.scrollHeight;
+  else if (older) scroll.scrollTop = previousTop + scroll.scrollHeight - previousHeight;
+  state.scrollChat = false;
 }
 function renderThreads() {
   const query = $("thread-search").value.trim().toLowerCase();
@@ -228,7 +468,7 @@ function applyTarget() {
   const thread = state.selectedThread;
   $("target-title").textContent = thread?.title || "New conversation";
   $("target-subtitle").textContent = thread
-    ? `${folderName(thread.workspace)} · ${thread.thread_id}`
+    ? folderName(thread.workspace)
     : "A fresh start with Codex";
   $("target-subtitle").title = thread
     ? `${thread.workspace}\n${thread.thread_id}`
@@ -239,11 +479,11 @@ function applyTarget() {
     .querySelector(".target-icon")
     .replaceChildren(icon(thread ? "message" : "plus"));
   $("composer-description").textContent = thread
-    ? "Your next prompt stays in this conversation."
-    : "Start fresh, or pick a thread from the sidebar.";
+    ? `${folderName(thread.workspace)} · ${ACTIVE.has(thread.status) ? "Codex is working…" : "Ready for your next message"}`
+    : "Your coding companion, a message away.";
   const busy = thread && ACTIVE.has(thread.status);
   $("submit-prompt").disabled =
-    state.sending || Boolean(thread && (!thread.can_send || busy));
+    state.sending || !state.models.length || Boolean(thread && (!thread.can_send || busy));
   $("submit-prompt").querySelector("span").textContent = state.sending
     ? "Sending…"
     : thread
@@ -253,11 +493,15 @@ function applyTarget() {
     ? "This thread has a run in progress. Wait for it to finish or stop the run."
     : thread && !thread.can_send
       ? "This thread is not available for a new prompt."
-      : "Your response runs in the background. You can keep an eye on it here.";
+      : "Enter to send · Shift + Enter for a new line";
+  $("chat-status").textContent = state.sending ? "Sending…" : busy ? "Thinking…" : "";
+  $("chat-cancel-run").hidden = !state.run || !ACTIVE.has(state.run.status)
+    || Boolean(state.run.thread_id && state.run.thread_id !== state.selectedThread?.thread_id);
+  $("chat-permission").querySelector("span").textContent = permissionLabel(state.overview?.sandbox || "danger-full-access");
   renderThreads();
 }
 async function selectThread(thread) {
-  state.selectedThread = thread;
+  setConversation(thread);
   applyTarget();
   navigate("workspace");
   if (thread.latest_run) await openRun(thread.latest_run.run_id, false);
@@ -266,7 +510,8 @@ async function selectThread(thread) {
       "Continue this conversation",
       thread.preview || "Send your next prompt to this thread.",
     );
-  $("prompt").focus();
+  await loadMessages();
+  $("prompt").focus({ preventScroll: true });
   renderOutputTab();
 }
 function resetOutput(title, description) {
@@ -294,6 +539,7 @@ function resetOutput(title, description) {
     "run-details",
     "run-status",
     "cancel-run",
+    "chat-cancel-run",
   ])
     $(id).hidden = true;
   $("copy-output").disabled = true;
@@ -301,14 +547,15 @@ function resetOutput(title, description) {
   $("activity-count").textContent = "0";
 }
 function newConversation() {
-  state.selectedThread = null;
+  setConversation(null, true);
   state.retrySubmission = null;
   $("prompt").value = "";
   updatePromptCount();
   applyTarget();
   resetOutput();
   navigate("workspace");
-  $("prompt").focus();
+  $("prompt").focus({ preventScroll: true });
+  renderChat();
 }
 function renderRows(container, runs, historyView = false) {
   const nodes = runs.map((run) => {
@@ -434,10 +681,13 @@ async function refreshWorkspace() {
       refreshOverview(),
       loadRuns(),
       loadThreads(),
+      loadModels(),
+      loadUsage(),
     ]);
     for (const result of results)
       if (result.status === "rejected") report(result.reason);
     if (state.output === "thread") await loadThreadActivity(true);
+    await loadMessages();
   } finally {
     state.refreshing = false;
     $("refresh-workspace").classList.remove("spinning");
@@ -642,6 +892,9 @@ function renderRun() {
     ["Run ID", run.run_id],
     ["Thread ID", run.thread_id || "Assigned when Codex starts"],
     ["Workspace", run.workspace],
+    ["Model", run.model || "Not recorded"],
+    ["Effort", run.reasoning_effort || "Not recorded"],
+    ["Permissions", run.sandbox ? permissionLabel(run.sandbox) : "Not recorded"],
     [
       "Started",
       run.started_at
@@ -682,14 +935,15 @@ function mergeRun(page) {
   state.cursor = page.next_cursor;
   state.run = { ...page, events: [] };
   if (state.autoTargetRun === page.run_id && page.thread_id) {
-    state.selectedThread = state.threads.find(
+    setConversation(state.threads.find(
       (thread) => thread.thread_id === page.thread_id,
     ) || {
       thread_id: page.thread_id,
       title: page.prompt_preview || "Conversation",
       workspace: page.workspace,
       can_send: true,
-    };
+      latest_run: page,
+    });
   }
   state.runs = [
     page,
@@ -705,6 +959,7 @@ function mergeRun(page) {
   renderRun();
   renderRuns();
   applyTarget();
+  renderChat();
 }
 async function pollRun(runId, version) {
   clearTimeout(state.pollTimer);
@@ -725,6 +980,8 @@ async function pollRun(runId, version) {
       const results = await Promise.allSettled([
         refreshOverview(),
         loadThreads(),
+        loadMessages(),
+        loadUsage(),
       ]);
       for (const result of results)
         if (result.status === "rejected") report(result.reason);
@@ -750,7 +1007,7 @@ async function openRun(runId, setTarget = true) {
     );
     if (version !== state.requestVersion) return;
     if (setTarget && page.thread_id) {
-      state.selectedThread = state.threads.find(
+      setConversation(state.threads.find(
         (thread) => thread.thread_id === page.thread_id,
       ) || {
         thread_id: page.thread_id,
@@ -759,9 +1016,10 @@ async function openRun(runId, setTarget = true) {
         status: ACTIVE.has(page.status) ? page.status : "available",
         can_send: true,
         latest_run: page,
-      };
+      });
     }
     mergeRun(page);
+    loadMessages();
     if (page.has_more || ACTIVE.has(page.status)) await pollRun(runId, version);
   } catch (error) {
     if (version === state.requestVersion) report(error);
@@ -777,7 +1035,8 @@ async function sendPrompt(event) {
   }
   const thread = state.selectedThread;
   if (thread && (!thread.can_send || ACTIVE.has(thread.status))) return;
-  const bodyKey = JSON.stringify([prompt, thread?.thread_id || null]);
+  if (!state.model || !state.effort) return;
+  const bodyKey = JSON.stringify([prompt, thread?.thread_id || null, state.model, state.effort]);
   if (state.retrySubmission?.bodyKey !== bodyKey)
     state.retrySubmission = {
       bodyKey,
@@ -786,7 +1045,10 @@ async function sendPrompt(event) {
       ).join(""),
     };
   state.sending = true;
+  state.pending = { prompt, created_at: new Date().toISOString(), model: state.model, effort: state.effort, version: state.messageVersion };
+  state.scrollChat = true;
   applyTarget();
+  renderChat();
   $("page-error").hidden = true;
   const generation = state.generation;
   const viewVersion = state.requestVersion;
@@ -795,10 +1057,16 @@ async function sendPrompt(event) {
       prompt,
       thread?.thread_id,
       state.retrySubmission.key,
+      { model: state.model, reasoning_effort: state.effort },
     );
     if (generation !== state.generation) return;
     state.retrySubmission = null;
-    toast("Prompt sent. Codex is on it.");
+    state.pending = null;
+    if ($("prompt").value === prompt) {
+      $("prompt").value = "";
+      updatePromptCount();
+    }
+    toast("Message sent");
     if (viewVersion === state.requestVersion) await openRun(run.run_id);
     else await Promise.all([loadRuns(), loadThreads()]);
     await refreshOverview();
@@ -806,12 +1074,16 @@ async function sendPrompt(event) {
     if (generation === state.generation) report(error);
   } finally {
     state.sending = false;
+    state.pending = null;
     applyTarget();
+    renderChat();
   }
 }
 function updatePromptCount() {
   $("prompt-count").textContent =
     `${$("prompt").value.length.toLocaleString()} / 100,000`;
+  $("prompt").style.height = "auto";
+  $("prompt").style.height = Math.min($("prompt").scrollHeight, 160) + "px";
 }
 async function copyText(text) {
   try {
@@ -887,12 +1159,21 @@ async function checkHealth() {
 
 for (const id of ["top-connect", "sidebar-connect"])
   $(id).addEventListener("click", () => navigate("connection"));
-$("new-conversation").addEventListener("click", newConversation);
-$("clear-target").addEventListener("click", () => {
-  state.selectedThread = null;
-  applyTarget();
-  $("prompt").focus();
+$("model-select").addEventListener("change", () => {
+  state.model = $("model-select").value;
+  const model = state.models.find((item) => item.id === state.model);
+  if (!model.efforts.some((effort) => effort.id === state.effort)) state.effort = model.default_effort;
+  renderPickers();
+  savePreferences();
 });
+$("effort-select").addEventListener("change", () => {
+  state.effort = $("effort-select").value;
+  renderPickers();
+  savePreferences();
+});
+$("older-messages").addEventListener("click", () => loadMessages(true));
+$("new-conversation").addEventListener("click", newConversation);
+$("clear-target").addEventListener("click", newConversation);
 document
   .querySelectorAll("[data-view]")
   .forEach((button) =>
@@ -932,7 +1213,7 @@ $("load-more-runs").addEventListener("click", async () => {
 $("prompt-form").addEventListener("submit", sendPrompt);
 $("prompt").addEventListener("input", updatePromptCount);
 $("prompt").addEventListener("keydown", (event) => {
-  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+  if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
     event.preventDefault();
     $("prompt-form").requestSubmit();
   }
@@ -986,10 +1267,11 @@ $("copy-output").addEventListener("click", () =>
   ),
 );
 $("export-output").addEventListener("click", exportOutput);
-$("cancel-run").addEventListener("click", async () => {
+async function cancelRun() {
   if (!state.run || !ACTIVE.has(state.run.status)) return;
   const id = state.run.run_id;
   $("cancel-run").disabled = true;
+  $("chat-cancel-run").disabled = true;
   try {
     await client.request(`/v1/runs/${encodeURIComponent(id)}/cancel`, {
       body: {},
@@ -1002,8 +1284,11 @@ $("cancel-run").addEventListener("click", async () => {
     report(error);
   } finally {
     $("cancel-run").disabled = false;
+    $("chat-cancel-run").disabled = false;
   }
-});
+}
+$("cancel-run").addEventListener("click", cancelRun);
+$("chat-cancel-run").addEventListener("click", cancelRun);
 $("continue-thread").addEventListener("click", async () => {
   if (!state.run?.thread_id) return;
   try {
@@ -1012,7 +1297,7 @@ $("continue-thread").addEventListener("click", async () => {
       (await client.request(
         `/v1/threads/${encodeURIComponent(state.run.thread_id)}/info`,
       ));
-    state.selectedThread = thread;
+    setConversation(thread);
     applyTarget();
     $("prompt").value = "";
     updatePromptCount();

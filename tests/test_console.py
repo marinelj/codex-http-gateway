@@ -2,7 +2,7 @@ import json
 import sqlite3
 from uuid import uuid4
 
-from codex_gateway.store import Store
+from codex_gateway.store import GatewayError, Store
 
 from .conftest import client_for, submit, wait_terminal
 
@@ -142,3 +142,139 @@ def test_existing_database_migrates_without_losing_output(settings_factory):
     assert migrated["final_output"] == "Keep this answer"
     assert migrated["prompt_preview"] == "Keep this prompt"
     store.close()
+
+
+async def test_models_efforts_and_full_access_reach_new_and_resumed_cli(settings_factory):
+    async with client_for(settings_factory()) as (client, _):
+        options = (await client.get("/v1/models")).json()
+        assert options["default_model"] == "codex-test"
+        fast = next(model for model in options["models"] if model["id"] == "codex-fast")
+        assert [effort["id"] for effort in fast["efforts"]] == ["low", "medium"]
+        first = await submit(client, "execution-options")
+        result = await wait_terminal(client, first["run_id"])
+        assert json.loads(result["final_output"]) == {
+            "model": "codex-test",
+            "reasoning_effort": "medium",
+            "sandbox": "danger-full-access",
+            "approval_policy": "never",
+        }
+        response = await client.post(
+            "/v1/runs",
+            json={
+                "prompt": "execution-options",
+                "thread_id": result["thread_id"],
+                "model": "codex-fast",
+                "reasoning_effort": "low",
+            },
+            headers={"Idempotency-Key": "model-selection"},
+        )
+        assert response.status_code == 202
+        resumed = await wait_terminal(client, response.json()["run_id"])
+        assert resumed["thread_id"] == result["thread_id"]
+        assert resumed["model"] == "codex-fast" and resumed["reasoning_effort"] == "low"
+        assert json.loads(resumed["final_output"]) == {
+            "model": "codex-fast",
+            "reasoning_effort": "low",
+            "sandbox": "danger-full-access",
+            "approval_policy": "never",
+        }
+        conflict = await client.post(
+            "/v1/runs",
+            json={
+                "prompt": "execution-options",
+                "thread_id": result["thread_id"],
+                "model": "codex-fast",
+                "reasoning_effort": "medium",
+            },
+            headers={"Idempotency-Key": "model-selection"},
+        )
+        assert conflict.status_code == 409
+        invalid = await client.post(
+            "/v1/runs",
+            json={
+                "prompt": "hello",
+                "model": "codex-fast",
+                "reasoning_effort": "high",
+            },
+        )
+        assert invalid.status_code == 422 and invalid.json()["error"]["code"] == "invalid_effort"
+        invalid = await client.post("/v1/runs", json={"prompt": "hello", "model": "missing-model"})
+        assert invalid.status_code == 422 and invalid.json()["error"]["code"] == "invalid_model"
+
+
+async def test_chat_pages_saved_messages_in_conversation_order(settings_factory):
+    settings = settings_factory()
+    async with client_for(settings) as (client, _):
+        first = await submit(client, "First message")
+        result = await wait_terminal(client, first["run_id"])
+        second = await submit(client, "Second message", result["thread_id"])
+        await wait_terminal(client, second["run_id"])
+        page = (await client.get(f"/v1/threads/{result['thread_id']}/messages?limit=1")).json()
+        assert page["history_scope"] == "codex" and page["has_more"]
+        assert [(message["role"], message["text"]) for message in page["messages"]] == [
+            ("user", "Second message"),
+            ("assistant", "Second message"),
+        ]
+        earlier = (
+            await client.get(
+                f"/v1/threads/{result['thread_id']}/messages",
+                params={
+                    "limit": 1,
+                    "cursor": page["next_cursor"],
+                },
+            )
+        ).json()
+        assert [message["text"] for message in earlier["messages"]] == [
+            "First message",
+            "First message",
+        ]
+        assert not earlier["has_more"]
+    async with client_for(settings) as (client, _):
+        restored = (await client.get(f"/v1/runs/{second['run_id']}")).json()
+        assert restored["model"] == "codex-test"
+        assert restored["reasoning_effort"] == "medium"
+        assert restored["sandbox"] == "danger-full-access"
+
+
+def test_version_two_history_keeps_unknown_execution_settings(settings_factory):
+    settings = settings_factory()
+    settings.prepare()
+    store = Store(settings)
+    run = store.create("Older prompt", None, None)
+    store.finish(run["run_id"], "completed", final_output="Older answer")
+    store.close()
+
+    with sqlite3.connect(settings.data_dir / "gateway.sqlite3") as db:
+        for column in ["model", "reasoning_effort", "sandbox"]:
+            db.execute(f"ALTER TABLE runs DROP COLUMN {column}")
+        db.execute("UPDATE metadata SET value='2' WHERE key='schema_version'")
+    store = Store(settings)
+    result = store.get(run["run_id"])
+    assert result["final_output"] == "Older answer"
+    assert (
+        result["model"] is None and result["reasoning_effort"] is None and result["sandbox"] is None
+    )
+    store.close()
+
+
+async def test_usage_notice_shows_remaining_limits_without_account_identifiers(settings_factory):
+    async with client_for(settings_factory()) as (client, gateway):
+        response = await client.get("/v1/usage")
+        notice = response.json()
+        assert notice["available"]
+        assert [(window["name"], window["remaining_percent"]) for window in notice["windows"]] == [
+            ("5-hour", 75),
+            ("Weekly", 40),
+        ]
+        assert notice["resets_available"] == 2
+        assert all(window["resets_at"] > 0 for window in notice["windows"])
+        assert "not-for-the-console" not in response.text and "accountId" not in response.text
+
+        async def unavailable(*_args):
+            raise GatewayError(503, "offline", "Offline")
+
+        gateway.catalog.usage_cache = None
+        gateway.catalog.rpc = unavailable
+        notice = (await client.get("/v1/usage")).json()
+        assert not notice["available"] and notice["windows"] == []
+        assert "unavailable" in notice["message"]

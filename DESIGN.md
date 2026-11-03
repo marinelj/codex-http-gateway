@@ -20,3 +20,9 @@ The console is served by FastAPI on the existing `/codex` mount. It needs no fro
 build, CDN, analytics service, browser storage or separate hosting account. Responsive
 layouts stack the workspace panels on smaller screens and collapse navigation into
 a drawer on narrow screens. Motion respects the reduced-motion preference.
+
+The primary workspace now follows a familiar messaging layout: a conversation header,
+left/right reply bubbles, timestamps, and a bottom composer with a round send button.
+The olive palette and original wordmark remain. Model and reasoning effort selectors
+sit next to the composer; the account usage notice board shows allowance and resets.
+Detailed tool events stay in an expandable panel below the conversation.
