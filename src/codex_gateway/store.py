@@ -33,6 +33,7 @@ class Store:
     """One event-loop thread owns this connection; transactions never cross awaits."""
 
     def __init__(self, settings: Settings):
+        self.workspace = str(settings.workspace)
         self.lock_fd = os.open(settings.data_dir / "instance.lock", os.O_CREAT | os.O_RDWR, 0o600)
         try:
             fcntl.flock(self.lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -57,6 +58,7 @@ class Store:
                     requested_thread_id TEXT,
                     thread_id TEXT REFERENCES threads(thread_id),
                     prompt TEXT NOT NULL,
+                    workspace TEXT NOT NULL,
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     started_at TEXT,
@@ -83,7 +85,6 @@ class Store:
             """)
             with self.db:
                 for key, value in (
-                    ("schema_version", "1"),
                     ("workspace", str(settings.workspace)),
                     ("codex_home", str(settings.codex_home)),
                 ):
@@ -93,6 +94,16 @@ class Store:
                     if row and row[0] != value:
                         raise RuntimeError(f"Data directory belongs to a different {key}")
                     self.db.execute("INSERT OR IGNORE INTO metadata VALUES (?, ?)", (key, value))
+                version = self.db.execute(
+                    "SELECT value FROM metadata WHERE key='schema_version'"
+                ).fetchone()
+                if version and version[0] not in {"1", "2"}:
+                    raise RuntimeError("Unsupported database schema version")
+                columns = {row[1] for row in self.db.execute("PRAGMA table_info(runs)")}
+                if "workspace" not in columns:
+                    self.db.execute("ALTER TABLE runs ADD COLUMN workspace TEXT")
+                    self.db.execute("UPDATE runs SET workspace=?", (self.workspace,))
+                self.db.execute("INSERT OR REPLACE INTO metadata VALUES ('schema_version', '2')")
         except BaseException:
             if hasattr(self, "db"):
                 self.db.close()
@@ -106,6 +117,7 @@ class Store:
     @staticmethod
     def decode(row: sqlite3.Row) -> dict[str, Any]:
         result = dict(row)
+        result["prompt_preview"] = " ".join(result["prompt"].split())[:180]
         for key in ("usage", "error"):
             result[key] = json.loads(result[key]) if result[key] else None
         for key in ("seq", "idempotency_key", "fingerprint"):
@@ -133,7 +145,9 @@ class Store:
             "SELECT COUNT(*) FROM runs WHERE status IN ('queued','starting','running')"
         ).fetchone()[0]
 
-    def create(self, prompt: str, thread_id: str | None, key: str | None) -> dict[str, Any]:
+    def create(
+        self, prompt: str, thread_id: str | None, key: str | None, workspace: str | None = None
+    ) -> dict[str, Any]:
         run_id = "run_" + uuid4().hex
         try:
             with self.db:
@@ -143,13 +157,14 @@ class Store:
                     )
                 self.db.execute(
                     """INSERT INTO runs
-                    (run_id,requested_thread_id,thread_id,prompt,status,created_at,
-                     idempotency_key,fingerprint) VALUES (?,?,?,?,?,?,?,?)""",
+                    (run_id,requested_thread_id,thread_id,prompt,workspace,status,created_at,
+                     idempotency_key,fingerprint) VALUES (?,?,?,?,?,?,?,?,?)""",
                     (
                         run_id,
                         thread_id,
                         thread_id,
                         prompt,
+                        workspace or self.workspace,
                         "queued",
                         now(),
                         key,
@@ -245,19 +260,25 @@ class Store:
             raise GatewayError(404, "thread_not_found", "No gateway history for this thread")
         return self.decode(row)
 
-    def runs(self, *, thread_id: str | None, after: str | None, limit: int) -> dict:
-        seq = 0
+    def runs(
+        self, *, thread_id: str | None, after: str | None, limit: int, order: str = "asc"
+    ) -> dict:
+        descending = order == "desc"
+        seq = 9223372036854775807 if descending else 0
         if after:
             row = self.db.execute("SELECT seq FROM runs WHERE run_id=?", (after,)).fetchone()
             if row is None:
                 raise GatewayError(400, "invalid_cursor", "Unknown run cursor")
             seq = row[0]
-        query = "SELECT * FROM runs WHERE seq>?"
+        query = "SELECT * FROM runs WHERE seq" + ("<?" if descending else ">?")
         args: list[Any] = [seq]
         if thread_id:
             query += " AND thread_id=?"
             args.append(thread_id)
-        rows = self.db.execute(query + " ORDER BY seq LIMIT ?", [*args, limit + 1]).fetchall()
+        rows = self.db.execute(
+            query + (" ORDER BY seq DESC" if descending else " ORDER BY seq ASC") + " LIMIT ?",
+            [*args, limit + 1],
+        ).fetchall()
         return {
             "runs": [self.decode(row) for row in rows[:limit]],
             "next_after": rows[min(len(rows), limit) - 1]["run_id"] if rows else after,
@@ -266,3 +287,20 @@ class Store:
 
     def is_active(self, run_id: str) -> bool:
         return self.get(run_id)["status"] in ACTIVE
+
+    def overview(self) -> dict:
+        statuses = {
+            row[0]: row[1]
+            for row in self.db.execute("SELECT status,COUNT(*) FROM runs GROUP BY status")
+        }
+        return {
+            "total_runs": sum(statuses.values()),
+            "total_threads": self.db.execute("SELECT COUNT(*) FROM threads").fetchone()[0],
+            "statuses": statuses,
+        }
+
+    def maybe_latest(self, thread_id: str) -> dict | None:
+        try:
+            return self.latest(thread_id)
+        except GatewayError:
+            return None

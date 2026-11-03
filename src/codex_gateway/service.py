@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
 
+from .catalog import Catalog
 from .config import Settings
 from .models import ACTIVE, SubmitRun
 from .runner import RunFailure, Runner, validate_session
@@ -16,6 +18,7 @@ class Gateway:
         self.settings = settings
         self.store = store
         self.runner = Runner(settings, store)
+        self.catalog = Catalog(settings, store)
         self.queue: asyncio.Queue[str] = asyncio.Queue()
         self.lock = asyncio.Lock()
         self.ready: dict[str, asyncio.Event] = {}
@@ -52,9 +55,20 @@ class Gateway:
                 return replay
             if self.store.active_count() >= self.settings.max_pending_runs:
                 raise GatewayError(429, "queue_full", "Too many pending runs; retry later")
+            workspace = str(self.settings.workspace)
             if thread_id:
-                await asyncio.to_thread(validate_session, self.settings, thread_id)
-            run = self.store.create(request.prompt, thread_id, key)
+                thread = await self.catalog.get(thread_id)
+                if not self.settings.allow_other_workspaces and thread["workspace"] != workspace:
+                    raise GatewayError(
+                        409, "workspace_mismatch", "Thread belongs to another workspace"
+                    )
+                if not thread["can_send"]:
+                    raise GatewayError(
+                        409, "thread_unavailable", "This thread cannot accept a prompt"
+                    )
+                workspace = thread["workspace"]
+                await asyncio.to_thread(validate_session, self.settings, thread_id, Path(workspace))
+            run = self.store.create(request.prompt, thread_id, key, workspace)
             signal = self.ready[run["run_id"]] = asyncio.Event()
             self.settled[run["run_id"]] = asyncio.Event()
             self.queue.put_nowait(run["run_id"])

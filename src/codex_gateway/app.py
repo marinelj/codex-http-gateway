@@ -1,6 +1,6 @@
 import secrets
 from contextlib import asynccontextmanager
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query, Request, Response
@@ -9,9 +9,20 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from . import __version__
 from .config import Settings
-from .models import AcceptedRun, RunDetail, RunPage, RunSummary, SubmitRun, ThreadDetail
+from .models import (
+    AcceptedRun,
+    CatalogThread,
+    Overview,
+    RunDetail,
+    RunPage,
+    RunSummary,
+    SubmitRun,
+    ThreadDetail,
+    ThreadPage,
+)
 from .service import Gateway
 from .store import GatewayError, Store
+from .ui import mount_ui
 
 
 class BodyLimit:
@@ -132,6 +143,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def gateway(request: Request) -> Gateway:
         return request.app.state.gateway
 
+    @router.get("/overview", response_model=Overview, tags=["workspace"])
+    async def overview(request: Request):
+        return {
+            "version": __version__,
+            "workspace": str(settings.workspace),
+            "sandbox": settings.sandbox,
+            "model": settings.model,
+            "workers": settings.workers,
+            "max_pending_runs": settings.max_pending_runs,
+            "allow_other_workspaces": settings.allow_other_workspaces,
+            **gateway(request).store.overview(),
+        }
+
+    @router.get("/threads", response_model=ThreadPage, tags=["threads"])
+    async def list_threads(
+        request: Request,
+        cursor: Annotated[str | None, Query(max_length=4000)] = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        search: Annotated[str | None, Query(max_length=200)] = None,
+    ):
+        return await gateway(request).catalog.page(cursor, limit, search)
+
+    @router.get("/threads/{thread_id}/info", response_model=CatalogThread, tags=["threads"])
+    async def thread_info(thread_id: UUID, request: Request):
+        return await gateway(request).catalog.get(str(thread_id))
+
     @router.post("/runs", status_code=202, response_model=AcceptedRun, tags=["runs"])
     async def submit(
         body: SubmitRun,
@@ -155,11 +192,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         thread_id: UUID | None = None,
         after: str | None = None,
         limit: Annotated[int, Query(ge=1, le=100)] = 20,
+        order: Literal["asc", "desc"] = "asc",
     ):
         return gateway(request).store.runs(
             thread_id=str(thread_id) if thread_id else None,
             after=after,
             limit=limit,
+            order=order,
         )
 
     @router.get("/runs/{run_id}", response_model=RunDetail, tags=["runs"])
@@ -193,4 +232,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
 
     app.include_router(router)
+    mount_ui(app)
     return app

@@ -20,5 +20,5 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pytest
-      - run: node --test integrations/node-http/proxy.test.mjs
+      - run: node --test integrations/node-http/proxy.test.mjs tests/frontend.test.mjs
       - run: uv build

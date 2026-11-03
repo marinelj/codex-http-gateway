@@ -12,8 +12,63 @@ def emit(data):
     print(json.dumps(data), flush=True)
 
 
+def catalog():
+    for line in sys.stdin:
+        request = json.loads(line)
+        if "id" not in request:
+            continue
+        root = Path(os.environ["CODEX_HOME"]) / "sessions"
+        threads = []
+        for path in sorted(root.glob("**/*.jsonl")):
+            try:
+                header = json.loads(path.read_text().splitlines()[0])["payload"]
+                threads.append(
+                    {
+                        "id": header["id"],
+                        "cwd": header["cwd"],
+                        "path": str(path),
+                        "name": header.get("name"),
+                        "preview": header.get("preview", "Saved conversation"),
+                        "updatedAt": header.get("updated_at", 100),
+                        "status": {"type": "notLoaded"},
+                        "canAcceptDirectInput": header.get("can_send", True),
+                    }
+                )
+            except (ValueError, KeyError, IndexError):
+                continue
+        params = request.get("params", {})
+        if request["method"] == "initialize":
+            result = {}
+        elif request["method"] == "thread/list":
+            query = params.get("searchTerm")
+            if query:
+                threads = [
+                    thread for thread in threads if query in (thread["name"] or thread["preview"])
+                ]
+            offset = int(params.get("cursor") or 0)
+            limit = params.get("limit", 50)
+            result = {
+                "data": threads[offset : offset + limit],
+                "nextCursor": (str(offset + limit) if offset + limit < len(threads) else None),
+            }
+        elif request["method"] == "thread/read":
+            thread = next((item for item in threads if item["id"] == params["threadId"]), None)
+            if thread is None:
+                emit(
+                    {"id": request["id"], "error": {"code": -32602, "message": "Thread not found"}}
+                )
+                continue
+            result = {"thread": thread}
+        else:
+            result = {}
+        emit({"id": request["id"], "result": result})
+
+
 def main():
     args = sys.argv[1:]
+    if args and args[0] == "app-server":
+        catalog()
+        return
     prompt = sys.stdin.read()
     thread = args[args.index("resume") + 1] if "resume" in args else str(uuid4())
     cwd = args[args.index("-C") + 1]

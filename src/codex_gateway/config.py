@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     max_output_bytes: int = Field(default=64 * 1024 * 1024, ge=1024)
     max_line_bytes: int = Field(default=8 * 1024 * 1024, ge=1024)
     skip_git_repo_check: bool = False
+    allow_other_workspaces: bool = False
 
     @field_validator("proxy_url")
     @classmethod

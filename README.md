@@ -3,6 +3,9 @@
 A small, persistent HTTP service for submitting prompts to the **Codex CLI** and polling
 thread status and output. New conversations and follow-up prompts use the same API.
 
+Includes a responsive web console for active threads, prompt submission, live answers,
+tool activity, whole-thread output, cancellation, history, and connection details.
+
 ```text
 Client → HTTP :8080 → gateway → codex exec --json
                         └────→ SQLite run history + ordered events
@@ -30,6 +33,41 @@ export BASE=http://127.0.0.1:8080
 
 The service reuses local Codex authentication. Its HTTP token is separate from your
 Codex credentials. No model or API key is hardcoded.
+
+## Web console
+
+Open the gateway's root URL (`http://127.0.0.1:8080/` standalone, or
+`http://127.0.0.1:8080/codex/` through the shared-port provider). Click **Connect**
+and paste the token returned by `uv run codex-gateway token`.
+
+The **Active threads** sidebar lists saved, non-archived local Codex threads across
+all sources and providers, including conversations created outside the gateway.
+It loads every catalog page and supports search and scrolling. Here, "active"
+means non-archived; it does not mean every listed thread is currently generating.
+Runtime activity in a different Codex process is not necessarily visible to this client.
+
+Click a thread to select its ID and project folder. Enter a prompt, then click
+**Send to this thread** (or press Command/Ctrl+Enter). Selecting a thread does not
+submit the draft by itself. **New conversation** starts in the configured default
+workspace; **Use a thread ID directly** also accepts a saved local UUID.
+
+The response panel provides **Answer**, **Activity** for one run, **Thread** for
+all gateway-recorded activity on that conversation, and **JSON**. Runs update
+automatically. Copy output, download the full selected transcript, stop an active
+run, or continue the conversation. The activity panel shows the latest 500 events;
+JSON downloads include every recorded event. History provides status filters and
+pagination. The connection screen shows the workspace, sandbox, model and service limits.
+
+The token is kept only in the tab's memory, with no cookies, localStorage or
+sessionStorage. Reloading or disconnecting clears it. Prompts and model output are
+rendered as text, without executing model-supplied HTML. All scripts, styles and
+icons are served locally; no third-party assets receive your token or conversations.
+
+To send prompts to saved threads from other projects, set
+`GATEWAY_ALLOW_OTHER_WORKSPACES=true`. Each accepted run persists that thread's
+original folder, and the CLI uses it when resuming. This remains opt-in; the
+configured Codex sandbox applies to every run. Non-resumable or unavailable threads
+remain visible with sending disabled.
 
 ## Submit and poll
 
@@ -88,9 +126,12 @@ and strictly increasing; the latest status is returned even with an empty event 
 | Method | Path | Result |
 | --- | --- | --- |
 | POST | `/v1/runs` | Accept `{prompt, thread_id}`; null or omitted ID starts a thread |
+| GET | `/v1/threads` | Non-archived Codex catalog; optional `cursor`, `limit`, `search` |
+| GET | `/v1/threads/{thread_id}/info` | Saved title, project folder and availability |
 | GET | `/v1/threads/{thread_id}` | Latest status and paginated events across the thread |
 | GET | `/v1/runs/{run_id}` | One prompt, status, output and paginated events |
-| GET | `/v1/runs` | Paginated run summaries; optional `thread_id`, `after`, `limit` |
+| GET | `/v1/runs` | Paginated run summaries; optional `thread_id`, `after`, `limit`, `order=asc\|desc` |
+| GET | `/v1/overview` | Authenticated workspace settings and aggregate run counts |
 | POST | `/v1/runs/{run_id}/cancel` | Stop a queued or active run; safe to repeat |
 | GET | `/healthz` | Service liveness; does not verify model access or authentication |
 
@@ -104,13 +145,15 @@ was recorded, not that Codex finished successfully. Check the eventual status.
 
 ## Thread continuity and concurrency
 
-- Existing local CLI threads can be continued if their saved session metadata points
-  to the configured workspace. Historical output from before adoption is not imported:
+- Existing local CLI threads can be continued in the configured workspace, or in
+  their original folders when other workspaces are enabled. Historical output from before adoption is not imported:
   the inquiry response declares `history_scope: "gateway"`.
-- Missing/archived local sessions return `404`; another workspace returns `409`.
+- Missing/archived local sessions return `404` or `409`; another workspace returns
+  `409` unless cross-workspace continuation is enabled.
   Cloud task IDs and arbitrary numbers are not local Codex thread UUIDs.
 - The returned CLI thread UUID must match the requested UUID or execution is stopped.
-- One active run per thread; overlapping submissions return `409 thread_busy`.
+- One active gateway run per thread; overlapping submissions return `409 thread_busy`.
+  Coordinate independent CLI/app usage of the same thread separately.
 - Default one CLI worker also serializes different threads in a shared workspace.
   Raising the worker count permits simultaneous filesystem access; use with care.
 - A bounded queue returns `429` with `Retry-After` when full.
@@ -130,7 +173,8 @@ CLI `--host`, `--port`, `--workspace`, and `--data-dir` override these values.
 | `GATEWAY_HOST` | `127.0.0.1` | Listen address |
 | `GATEWAY_PORT` | `8080` | Listen port |
 | `GATEWAY_ROOT_PATH` | empty | Public proxy prefix, e.g. `/codex` |
-| `GATEWAY_WORKSPACE` | current directory | Fixed Codex working directory; normally a Git repo |
+| `GATEWAY_WORKSPACE` | current directory | Default folder for new conversations; normally a Git repo |
+| `GATEWAY_ALLOW_OTHER_WORKSPACES` | `false` | Permit saved threads to resume in their original project folders |
 | `GATEWAY_DATA_DIR` | `~/.local/state/codex-http-gateway` | SQLite database, lock and generated HTTP token |
 | `GATEWAY_CODEX_HOME` | `CODEX_HOME` or `~/.codex` | Saved CLI auth, configuration and sessions |
 | `GATEWAY_CODEX_BIN` | `codex` | CLI executable |
@@ -153,7 +197,9 @@ An output limit stops the run with an explicit error; captured output remains av
 History is retained until the operator removes or archives the data directory.
 
 The database is bound to one workspace and one Codex home. Use another data directory
-when changing either. Preserve the database **and** Codex session directory for continuity.
+when changing either default. Individual runs can record other folders when enabled.
+Upgrades migrate the existing database automatically and preserve prior output.
+Preserve the database **and** Codex session directory for continuity.
 
 ## Publish through an existing port 8080 provider
 
@@ -185,6 +231,7 @@ uv sync --frozen --dev
 uv run ruff check .
 uv run ruff format --check .
 uv run pytest
+node --test integrations/node-http/proxy.test.mjs tests/frontend.test.mjs
 uv build
 ```
 
@@ -193,6 +240,8 @@ persistence, continuation, failures and lifecycle behavior without model charges
 The optional real CLI smoke test is documented in `scripts/smoke.py`.
 
 Codex interface: [official noninteractive execution documentation](https://learn.chatgpt.com/docs/non-interactive-mode).
+Thread discovery uses the supported [Codex app-server catalog](https://learn.chatgpt.com/docs/app-server).
+Design research is recorded in [DESIGN.md](DESIGN.md).
 
 ## Run continuously on macOS
 
@@ -204,7 +253,11 @@ uv run python scripts/install_launchd.py
 
 This starts the gateway now and restarts it on failure and subsequent user login.
 Logs are written to `GATEWAY_DATA_DIR/service*.log`. The generated HTTP token is
-never written to logs or the LaunchAgent. To stop and remove the agent:
+never written to logs or the LaunchAgent.
+
+Rerun the installer after changing `.env` so the LaunchAgent's settings are refreshed.
+
+To stop and remove the agent:
 
 ```sh
 launchctl bootout "gui/$(id -u)/com.marinelj.codex-http-gateway"

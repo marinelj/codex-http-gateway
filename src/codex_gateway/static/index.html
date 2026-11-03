@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta
+      name="description"
+      content="Your Codex conversations, prompts, and progress in one workspace."
+    />
+    <title>Codex · Gateway</title>
+    <link rel="icon" href="{{base}}/assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="{{base}}/assets/styles.css" />
+    <script type="module" src="{{base}}/assets/app.mjs"></script>
+  </head>
+  <body data-base="{{base}}">
+    <svg
+      class="icon-definitions"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <defs>
+        <symbol id="i-plus" viewBox="0 0 24 24">
+          <path d="M12 5v14M5 12h14" />
+        </symbol>
+        <symbol id="i-grid" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="7" height="7" rx="1.5" />
+          <rect x="14" y="3" width="7" height="7" rx="1.5" />
+          <rect x="3" y="14" width="7" height="7" rx="1.5" />
+          <rect x="14" y="14" width="7" height="7" rx="1.5" />
+        </symbol>
+        <symbol id="i-message" viewBox="0 0 24 24">
+          <path
+            d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5A8.5 8.5 0 0 1 10.5 3h2A8.5 8.5 0 0 1 21 11.5Z"
+          />
+          <path d="M7 9h9M7 13h6" />
+        </symbol>
+        <symbol id="i-history" viewBox="0 0 24 24">
+          <path d="M3 11a9 9 0 1 1 2 7M3 5v6h6M12 7v5l3 2" />
+        </symbol>
+        <symbol id="i-settings" viewBox="0 0 24 24">
+          <path d="M4 7h16M4 17h16M8 4v6M16 14v6" />
+        </symbol>
+        <symbol id="i-arrow" viewBox="0 0 24 24">
+          <path d="M5 12h14m-6-6 6 6-6 6" />
+        </symbol>
+        <symbol id="i-send" viewBox="0 0 24 24">
+          <path d="m4 4 17 8-17 8 3-8-3-8Zm3 8h14" />
+        </symbol>
+        <symbol id="i-search" viewBox="0 0 24 24">
+          <circle cx="10.5" cy="10.5" r="6.5" />
+          <path d="m16 16 5 5" />
+        </symbol>
+        <symbol id="i-refresh" viewBox="0 0 24 24">
+          <path d="M20 7a9 9 0 1 0 1 8M20 3v5h-5" />
+        </symbol>
+        <symbol id="i-folder" viewBox="0 0 24 24">
+          <path
+            d="M3 7a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"
+          />
+        </symbol>
+        <symbol id="i-copy" viewBox="0 0 24 24">
+          <rect x="8" y="8" width="12" height="13" rx="2" />
+          <path d="M15 8V3H3v13h5" />
+        </symbol>
+        <symbol id="i-check" viewBox="0 0 24 24">
+          <path d="m5 12 4 4L19 6" />
+        </symbol>
+        <symbol id="i-stop" viewBox="0 0 24 24">
+          <rect x="6" y="6" width="12" height="12" rx="2" />
+        </symbol>
+        <symbol id="i-code" viewBox="0 0 24 24">
+          <path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18" />
+        </symbol>
+        <symbol id="i-external" viewBox="0 0 24 24">
+          <path d="M14 3h7v7m0-7L10 14M10 5H4v15h15v-6" />
+        </symbol>
+        <symbol id="i-close" viewBox="0 0 24 24">
+          <path d="m6 6 12 12M6 18 18 6" />
+        </symbol>
+        <symbol id="i-key" viewBox="0 0 24 24">
+          <circle cx="8" cy="9" r="5" />
+          <path d="m12 13 8 8m-5-5 3-3m0 6 3-3" />
+        </symbol>
+        <symbol id="i-download" viewBox="0 0 24 24">
+          <path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" />
+        </symbol>
+        <symbol id="i-clock" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 6v6l4 2" />
+        </symbol>
+        <symbol id="i-menu" viewBox="0 0 24 24">
+          <path d="M4 6h16M4 12h16M4 18h16" />
+        </symbol>
+        <symbol id="i-spark" viewBox="0 0 24 24">
+          <path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z" />
+        </symbol>
+        <symbol id="i-chevron" viewBox="0 0 24 24">
+          <path d="m9 5 7 7-7 7" />
+        </symbol>
+      </defs>
+    </svg>
+    <a class="skip-link" href="#main">Skip to workspace</a>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar" aria-label="Workspace navigation">
+        <a class="brand" href="#workspace" aria-label="Codex Gateway home"
+          ><span class="brand-mark">c<span>›</span></span
+          ><span>Codex <span class="brand-light">Gateway</span></span
+          ><span class="version-tag">BETA</span></a
+        >
+        <div class="workspace-switch">
+          <span class="workspace-avatar">M</span>
+          <div>
+            <strong>My workspace</strong
+            ><span id="workspace-label">Personal gateway</span>
+          </div>
+          <span class="workspace-tag">LOCAL</span>
+        </div>
+        <button class="button primary new-conversation" id="new-conversation">
+          <svg class="icon"><use href="#i-plus" /></svg>New conversation<span
+            class="shortcut"
+            >⌘ K</span
+          >
+        </button>
+        <nav class="main-nav" aria-label="Main">
+          <button class="nav-item active" data-view="workspace">
+            <svg class="icon"><use href="#i-grid" /></svg>Workspace
+          </button>
+          <button class="nav-item" data-view="runs">
+            <svg class="icon"><use href="#i-history" /></svg>Run history<span
+              id="runs-count"
+              class="nav-count"
+              >—</span
+            >
+          </button>
+          <button class="nav-item" data-view="connection">
+            <svg class="icon"><use href="#i-settings" /></svg>Connection
+          </button>
+        </nav>
+        <section class="thread-section" aria-labelledby="threads-heading">
+          <div class="section-label">
+            <h2 id="threads-heading">
+              Active threads <span id="thread-count">0</span>
+            </h2>
+            <button
+              class="icon-button"
+              id="refresh-threads"
+              aria-label="Refresh active threads"
+              title="Refresh active threads"
+            >
+              <svg class="icon"><use href="#i-refresh" /></svg>
+            </button>
+          </div>
+          <label class="sidebar-search"
+            ><svg class="icon"><use href="#i-search" /></svg
+            ><input
+              id="thread-search"
+              type="search"
+              placeholder="Find a conversation…"
+              aria-label="Search active threads"
+              autocomplete="off"
+          /></label>
+          <div class="thread-list" id="thread-list">
+            <p class="sidebar-empty">
+              Connect your gateway to see your Codex conversations here.
+            </p>
+          </div>
+          <button class="text-button thread-more" id="show-more-threads" hidden>
+            Show more threads
+          </button>
+          <p class="thread-note">Saved, non-archived Codex conversations</p>
+        </section>
+        <div class="sidebar-footer">
+          <a
+            class="nav-item"
+            id="api-docs"
+            href="{{base}}/docs"
+            target="_blank"
+            rel="noopener noreferrer"
+            ><svg class="icon"><use href="#i-code" /></svg>API reference<svg
+              class="icon small"
+            >
+              <use href="#i-external" /></svg></a
+          ><button class="profile" id="sidebar-connect">
+            <span class="profile-avatar"
+              ><svg class="icon"><use href="#i-key" /></svg></span
+            ><span
+              ><strong id="connection-label">Connect your gateway</strong
+              ><small id="connection-description"
+                >Use your private access token</small
+              ></span
+            ><svg class="icon small"><use href="#i-chevron" /></svg>
+          </button>
+        </div>
+      </aside>
+      <button
+        class="sidebar-backdrop"
+        id="sidebar-backdrop"
+        aria-label="Close navigation"
+        hidden
+      ></button>
+      <main id="main">
+        <header class="topbar">
+          <div class="breadcrumb">
+            <button
+              class="icon-button mobile-menu"
+              id="mobile-menu"
+              aria-label="Open navigation"
+            >
+              <svg class="icon"><use href="#i-menu" /></svg></button
+            ><span>My workspace</span><span class="breadcrumb-slash">/</span
+            ><strong id="breadcrumb-title">Overview</strong>
+          </div>
+          <div class="topbar-right">
+            <span id="health-status" class="health-status"
+              ><span class="status-dot"></span>Checking gateway</span
+            ><span class="topbar-separator"></span
+            ><button class="button small-button" id="top-connect">
+              <svg class="icon"><use href="#i-key" /></svg><span>Connect</span>
+            </button>
+          </div>
+        </header>
+        <div class="page-content">
+          <div class="banner error-banner" id="page-error" role="alert" hidden>
+            <span id="page-error-text"></span
+            ><button
+              class="icon-button"
+              id="dismiss-error"
+              aria-label="Dismiss error"
+            >
+              <svg class="icon"><use href="#i-close" /></svg>
+            </button>
+          </div>
+          <section id="view-workspace" class="view">
+            <div class="page-heading">
+              <div>
+                <div class="eyebrow">CODEX, CONNECTED.</div>
+                <h1>Your ideas. In motion.</h1>
+                <p>
+                  A place for your prompts, conversations, and everything that
+                  follows.
+                </p>
+              </div>
+              <button class="button" id="refresh-workspace">
+                <svg class="icon"><use href="#i-refresh" /></svg>Refresh
+              </button>
+            </div>
+            <div class="metrics" aria-label="Gateway activity">
+              <div class="metric">
+                <span class="metric-label"
+                  >TOTAL RUNS<svg class="icon">
+                    <use href="#i-history" /></svg></span
+                ><strong id="metric-total">—</strong
+                ><span class="metric-note"
+                  >Every prompt, kept in one place</span
+                >
+              </div>
+              <div class="metric">
+                <span class="metric-label"
+                  >IN PROGRESS<span class="status-dot pulse"></span></span
+                ><strong id="metric-active">—</strong
+                ><span class="metric-note">Queued, starting, or running</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label"
+                  >COMPLETED<svg class="icon">
+                    <use href="#i-check" /></svg></span
+                ><strong id="metric-completed">—</strong
+                ><span class="metric-note">Ready whenever you are</span>
+              </div>
+            </div>
+            <div class="workspace-grid">
+              <section
+                class="panel composer-panel"
+                aria-labelledby="composer-heading"
+              >
+                <div class="panel-heading">
+                  <div class="panel-icon">
+                    <svg class="icon"><use href="#i-spark" /></svg>
+                  </div>
+                  <div>
+                    <h2 id="composer-heading">What are we working on?</h2>
+                    <p id="composer-description">
+                      Start fresh, or pick a thread from the sidebar.
+                    </p>
+                  </div>
+                </div>
+                <form id="prompt-form">
+                  <div class="target-selector">
+                    <span class="field-label">SEND TO</span>
+                    <div class="target-card">
+                      <span class="target-icon"
+                        ><svg class="icon"><use href="#i-plus" /></svg
+                      ></span>
+                      <div class="target-text">
+                        <strong id="target-title">New conversation</strong
+                        ><span id="target-subtitle"
+                          >A fresh start with Codex</span
+                        >
+                      </div>
+                      <button
+                        class="icon-button"
+                        type="button"
+                        id="clear-target"
+                        aria-label="Start a new conversation"
+                        title="Start a new conversation"
+                        hidden
+                      >
+                        <svg class="icon"><use href="#i-close" /></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <label class="field-label prompt-label" for="prompt"
+                    >YOUR PROMPT</label
+                  ><textarea
+                    id="prompt"
+                    name="prompt"
+                    placeholder="Describe a task, ask a question, or just say hello…"
+                    maxlength="100000"
+                    required
+                  ></textarea>
+                  <div class="prompt-examples" id="prompt-examples">
+                    <span>Try a little inspiration</span
+                    ><button
+                      type="button"
+                      class="example-chip"
+                      data-example="hello"
+                    >
+                      Say hello <span>↗</span></button
+                    ><button
+                      type="button"
+                      class="example-chip"
+                      data-example="review"
+                    >
+                      Review my project <span>↗</span></button
+                    ><button
+                      type="button"
+                      class="example-chip"
+                      data-example="plan"
+                    >
+                      Plan a feature <span>↗</span>
+                    </button>
+                  </div>
+                  <details class="advanced">
+                    <summary>
+                      Use a thread ID directly<svg class="icon small">
+                        <use href="#i-chevron" />
+                      </svg>
+                    </summary>
+                    <label for="manual-thread"
+                      >Existing Codex thread UUID</label
+                    >
+                    <div class="input-with-action">
+                      <input
+                        id="manual-thread"
+                        placeholder="Paste a thread UUID"
+                        autocomplete="off"
+                      /><button type="button" class="button" id="use-thread-id">
+                        Select
+                      </button>
+                    </div>
+                  </details>
+                  <div class="composer-footer">
+                    <span class="composer-hint"
+                      ><kbd>⌘</kbd><kbd>↵</kbd> to send</span
+                    ><span id="prompt-count">0 / 100,000</span>
+                  </div>
+                  <button
+                    type="submit"
+                    class="button primary submit-button"
+                    id="submit-prompt"
+                  >
+                    <span>Send prompt</span
+                    ><svg class="icon"><use href="#i-arrow" /></svg>
+                  </button>
+                  <p class="form-note" id="submission-note">
+                    Your response runs in the background. You can keep an eye on
+                    it here.
+                  </p>
+                </form>
+              </section>
+              <section
+                class="panel response-panel"
+                aria-labelledby="response-heading"
+              >
+                <div class="response-heading">
+                  <h2 id="response-heading">
+                    <svg class="icon"><use href="#i-message" /></svg>Response
+                  </h2>
+                  <div class="response-actions">
+                    <span id="run-status" hidden></span
+                    ><button
+                      id="cancel-run"
+                      class="button danger small-button"
+                      hidden
+                    >
+                      <svg class="icon"><use href="#i-stop" /></svg>Stop run
+                    </button>
+                  </div>
+                </div>
+                <div
+                  class="response-tabs"
+                  role="tablist"
+                  aria-label="Output view"
+                >
+                  <button
+                    class="tab active"
+                    role="tab"
+                    aria-selected="true"
+                    id="tab-answer"
+                    data-output="answer"
+                  >
+                    Answer</button
+                  ><button
+                    class="tab"
+                    role="tab"
+                    aria-selected="false"
+                    id="tab-activity"
+                    data-output="activity"
+                  >
+                    Activity <span id="activity-count">0</span></button
+                  ><button
+                    class="tab"
+                    role="tab"
+                    aria-selected="false"
+                    id="tab-thread"
+                    data-output="thread"
+                  >
+                    Thread
+                  </button>
+                  <button
+                    class="tab"
+                    role="tab"
+                    aria-selected="false"
+                    id="tab-json"
+                    data-output="json"
+                  >
+                    JSON
+                  </button>
+                  <div class="tab-tools">
+                    <button
+                      class="icon-button"
+                      id="copy-output"
+                      aria-label="Copy output"
+                      title="Copy output"
+                      disabled
+                    >
+                      <svg class="icon"><use href="#i-copy" /></svg></button
+                    ><button
+                      class="icon-button"
+                      id="export-output"
+                      aria-label="Download all recorded events"
+                      title="Download all recorded events"
+                      disabled
+                    >
+                      <svg class="icon"><use href="#i-download" /></svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="response-content" id="response-content">
+                  <div class="response-empty" id="response-empty">
+                    <span class="empty-orbit"
+                      ><svg class="icon"><use href="#i-message" /></svg><i></i
+                      ><i></i
+                    ></span>
+                    <h3>A little prompt.<br />A world of possibility.</h3>
+                    <p>
+                      Send something to Codex and watch the response come
+                      together.
+                    </p>
+                    <span class="empty-caption"
+                      ><span class="status-dot"></span>Ready when you are</span
+                    >
+                  </div>
+                  <div
+                    id="output-answer"
+                    role="tabpanel"
+                    aria-labelledby="tab-answer"
+                    hidden
+                  ></div>
+                  <div
+                    id="output-activity"
+                    class="activity-list"
+                    role="tabpanel"
+                    aria-labelledby="tab-activity"
+                    hidden
+                  ></div>
+                  <div
+                    id="output-thread"
+                    class="activity-list"
+                    role="tabpanel"
+                    aria-labelledby="tab-thread"
+                    hidden
+                  ></div>
+                  <pre
+                    id="output-json"
+                    class="json-output"
+                    role="tabpanel"
+                    aria-labelledby="tab-json"
+                    hidden
+                  ></pre>
+                </div>
+                <div class="run-footer" id="run-footer" hidden>
+                  <div>
+                    <span class="status-dot"></span
+                    ><span id="run-footer-text">Waiting for Codex</span>
+                  </div>
+                  <button class="text-button" id="continue-thread">
+                    Continue this thread <span>↗</span>
+                  </button>
+                </div>
+                <details class="run-details" id="run-details" hidden>
+                  <summary>
+                    Run details<svg class="icon small">
+                      <use href="#i-chevron" />
+                    </svg>
+                  </summary>
+                  <dl id="run-metadata"></dl>
+                </details>
+              </section>
+            </div>
+            <section class="recent-section">
+              <div class="section-heading">
+                <div>
+                  <h2>Recent activity</h2>
+                  <p>Your latest prompts, without losing the thread.</p>
+                </div>
+                <button class="text-button" id="view-all-runs">
+                  View all runs
+                  <svg class="icon small"><use href="#i-arrow" /></svg>
+                </button>
+              </div>
+              <div class="run-table-wrap">
+                <table class="run-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">PROMPT</th>
+                      <th scope="col">STATUS</th>
+                      <th scope="col">WHEN</th>
+                      <th scope="col"><span class="sr-only">Open run</span></th>
+                    </tr>
+                  </thead>
+                  <tbody id="recent-runs"></tbody>
+                </table>
+                <div class="table-empty" id="recent-empty">
+                  Your first prompt starts the story. Send one above.
+                </div>
+              </div>
+            </section>
+            <footer class="page-footer">
+              <span
+                ><span class="tiny-brand">c›</span> Made for the way you
+                work.</span
+              ><span id="workspace-policy"
+                >Connected to your local Codex CLI</span
+              >
+            </footer>
+          </section>
+          <section id="view-runs" class="view" hidden>
+            <div class="page-heading">
+              <div>
+                <div class="eyebrow">NOTHING LOST.</div>
+                <h1>Run history</h1>
+                <p>Every prompt, response, and step along the way.</p>
+              </div>
+              <button class="button" id="refresh-history">
+                <svg class="icon"><use href="#i-refresh" /></svg>Refresh
+              </button>
+            </div>
+            <div class="history-toolbar">
+              <label class="search-field"
+                ><svg class="icon"><use href="#i-search" /></svg
+                ><input
+                  type="search"
+                  id="run-search"
+                  placeholder="Search loaded prompts or IDs…"
+                  aria-label="Search loaded run history" /></label
+              ><label class="status-filter"
+                ><span class="sr-only">Filter by status</span
+                ><select id="status-filter">
+                  <option value="all">All statuses</option>
+                  <option value="active">In progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="failed">Failed</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="interrupted">Interrupted</option>
+                  <option value="timed_out">Timed out</option>
+                </select></label
+              >
+            </div>
+            <div class="run-table-wrap history-table">
+              <table class="run-table">
+                <thead>
+                  <tr>
+                    <th scope="col">PROMPT / RUN</th>
+                    <th scope="col">STATUS</th>
+                    <th scope="col">STARTED</th>
+                    <th scope="col">DURATION</th>
+                    <th scope="col"><span class="sr-only">Open run</span></th>
+                  </tr>
+                </thead>
+                <tbody id="history-runs"></tbody>
+              </table>
+              <div class="table-empty" id="history-empty">No runs to show.</div>
+            </div>
+            <div class="list-footer">
+              <span id="history-count"></span
+              ><button class="button" id="load-more-runs" hidden>
+                Load more runs
+              </button>
+            </div>
+          </section>
+          <section id="view-connection" class="view" hidden>
+            <div class="page-heading">
+              <div>
+                <div class="eyebrow">YOUR WORKSPACE, YOUR CONTROL.</div>
+                <h1>Connection</h1>
+                <p>The details behind your Codex workspace.</p>
+              </div>
+              <button class="button" id="check-connection">
+                <svg class="icon"><use href="#i-refresh" /></svg>Check
+                connection
+              </button>
+            </div>
+            <div class="connection-grid">
+              <section class="panel connection-card">
+                <div class="panel-heading">
+                  <span class="panel-icon"
+                    ><svg class="icon"><use href="#i-key" /></svg
+                  ></span>
+                  <div>
+                    <h2>Gateway access</h2>
+                    <p>Your private connection to Codex.</p>
+                  </div>
+                </div>
+                <dl class="settings-list" id="connection-settings"></dl>
+                <div class="connection-buttons">
+                  <button class="button primary" id="change-token">
+                    Connect / change token</button
+                  ><button class="button" id="disconnect" disabled>
+                    Disconnect
+                  </button>
+                </div>
+                <p class="settings-note">
+                  The access token stays in this tab’s memory. Refreshing or
+                  disconnecting clears it.
+                </p>
+              </section>
+              <section class="panel connection-card">
+                <div class="panel-heading">
+                  <span class="panel-icon"
+                    ><svg class="icon"><use href="#i-code" /></svg
+                  ></span>
+                  <div>
+                    <h2>Everything, through one API</h2>
+                    <p>Use the console or call it directly.</p>
+                  </div>
+                </div>
+                <div class="endpoint-list">
+                  <div>
+                    <span class="http-method post">POST</span
+                    ><code>/v1/runs</code><span>Send a prompt</span>
+                  </div>
+                  <div>
+                    <span class="http-method">GET</span><code>/v1/threads</code
+                    ><span>Find active threads</span>
+                  </div>
+                  <div>
+                    <span class="http-method">GET</span
+                    ><code>/v1/threads/{id}</code
+                    ><span>Read thread output</span>
+                  </div>
+                  <div>
+                    <span class="http-method">GET</span
+                    ><code>/v1/runs/{id}</code><span>Follow a run</span>
+                  </div>
+                  <div>
+                    <span class="http-method post">POST</span
+                    ><code>/v1/runs/{id}/cancel</code><span>Stop a run</span>
+                  </div>
+                </div>
+                <a
+                  class="button docs-button"
+                  href="{{base}}/docs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >Open API reference<svg class="icon small">
+                    <use href="#i-external" /></svg
+                ></a>
+              </section>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+    <dialog id="connect-dialog" aria-labelledby="connect-heading">
+      <form id="connect-form">
+        <div class="dialog-top">
+          <span class="dialog-icon"
+            ><svg class="icon"><use href="#i-key" /></svg></span
+          ><button
+            type="button"
+            class="icon-button"
+            id="close-connect"
+            aria-label="Close connection dialog"
+          >
+            <svg class="icon"><use href="#i-close" /></svg>
+          </button>
+        </div>
+        <div class="eyebrow">A PRIVATE CONNECTION</div>
+        <h2 id="connect-heading">Let’s connect your workspace.</h2>
+        <p>
+          Enter your gateway access token to see your threads and start a
+          conversation.
+        </p>
+        <label class="field-label" for="access-token">ACCESS TOKEN</label
+        ><input
+          id="access-token"
+          type="password"
+          placeholder="Paste your gateway token"
+          autocomplete="off"
+          spellcheck="false"
+          required
+          minlength="32"
+        />
+        <p class="token-help">
+          On the server, run <code>uv run codex-gateway token</code> to get your
+          token.
+        </p>
+        <div
+          class="banner error-banner"
+          id="connect-error"
+          role="alert"
+          hidden
+        ></div>
+        <button class="button primary" type="submit" id="connect-submit">
+          Connect to gateway<svg class="icon"><use href="#i-arrow" /></svg>
+        </button>
+        <p class="token-privacy">
+          Kept in this tab’s memory. Never saved to browser storage.
+        </p>
+      </form>
+    </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  </body>
+</html>

@@ -12,7 +12,7 @@ from .config import Settings
 from .store import GatewayError, Store
 
 
-def validate_session(settings: Settings, thread_id: str) -> None:
+def validate_session(settings: Settings, thread_id: str, workspace: Path | None = None) -> None:
     """Validate local session metadata, without importing private transcript history."""
     root = settings.codex_home / "sessions"
     for path in root.glob(f"**/*{thread_id}.jsonl"):
@@ -26,7 +26,7 @@ def validate_session(settings: Settings, thread_id: str) -> None:
             if header.get("type") != "session_meta" or payload.get("id") != thread_id:
                 continue
             cwd = payload.get("cwd")
-            if not isinstance(cwd, str) or Path(cwd).resolve() != settings.workspace:
+            if not isinstance(cwd, str) or Path(cwd).resolve() != (workspace or settings.workspace):
                 raise GatewayError(409, "workspace_mismatch", "Thread belongs to another workspace")
             return
         except (OSError, ValueError, TypeError, AttributeError):
@@ -46,7 +46,7 @@ class Runner:
         self.settings = settings
         self.store = store
 
-    def command(self, thread_id: str | None) -> list[str]:
+    def command(self, thread_id: str | None, workspace: str | None = None) -> list[str]:
         args = [
             self.settings.codex_bin,
             "exec",
@@ -54,7 +54,7 @@ class Runner:
             "--color",
             "never",
             "-C",
-            str(self.settings.workspace),
+            workspace or str(self.settings.workspace),
             "-c",
             f'sandbox_mode="{self.settings.sandbox}"',
             "-c",
@@ -173,18 +173,23 @@ class Runner:
 
         try:
             if run["requested_thread_id"]:
-                await asyncio.to_thread(validate_session, self.settings, run["requested_thread_id"])
+                await asyncio.to_thread(
+                    validate_session,
+                    self.settings,
+                    run["requested_thread_id"],
+                    Path(run["workspace"]),
+                )
             proc = await asyncio.create_subprocess_exec(
                 sys.executable,
                 "-m",
                 "codex_gateway.supervisor",
                 str(lifetime_read),
-                *self.command(run["requested_thread_id"]),
+                *self.command(run["requested_thread_id"], run["workspace"]),
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=self.environment(),
-                cwd=self.settings.workspace,
+                cwd=run["workspace"],
                 pass_fds=(lifetime_read,),
                 start_new_session=True,
                 limit=self.settings.max_line_bytes,

@@ -31,6 +31,8 @@ class RunError(BaseModel):
 
 class RunSummary(BaseModel):
     run_id: str
+    prompt_preview: str
+    workspace: str
     thread_id: str | None
     status: RunStatus
     created_at: str
@@ -80,3 +82,33 @@ class RunPage(BaseModel):
     runs: list[RunSummary]
     next_after: str | None
     has_more: bool
+
+
+class CatalogThread(BaseModel):
+    thread_id: str
+    title: str
+    preview: str
+    workspace: str
+    status: str
+    updated_at: int
+    can_send: bool
+    latest_run: RunSummary | None = None
+
+
+class ThreadPage(BaseModel):
+    threads: list[CatalogThread]
+    next_cursor: str | None
+    has_more: bool
+
+
+class Overview(BaseModel):
+    version: str
+    workspace: str
+    sandbox: str
+    model: str | None
+    workers: int
+    max_pending_runs: int
+    allow_other_workspaces: bool
+    total_runs: int
+    total_threads: int
+    statuses: dict[str, int]
