@@ -1,14 +1,26 @@
 # Codex HTTP Gateway
 
-**Get more from your personal Codex subscription. Use it from your own tools over HTTP.**
+**Your personal Codex subscription, available to your own tools over HTTP.**
 
-Codex HTTP Gateway extends your local Codex CLI into a persistent HTTP service.
-Sign in with your ChatGPT account, then connect your own scripts, applications,
-and personal workflows to the Codex access included in your eligible subscription.
+## The goal
 
-The goal is simple: **make better use of the subscription you already pay for**.
-Bring Codex into the tools you use every day, keep conversations going across
-requests, and see your remaining allowance as you work.
+**Maximize the value of the personal subscription you already pay for by extending
+its Codex access into your own applications, scripts, and workflows.**
+
+You already have a subscription and an included usage allowance. This project helps
+you put that allowance to work wherever you need it: a personal app, a project
+utility, or a workflow you can call with an HTTP request.
+
+The purpose is to get more useful work from your existing AI budget. API-style
+access makes your subscription easier to integrate into everyday development;
+model controls and usage visibility help you decide how to spend its allowance.
+Normal subscription limits still apply.
+
+## How it works
+
+Codex HTTP Gateway wraps your authenticated local Codex CLI in a persistent HTTP
+service. Sign in with your eligible ChatGPT account, then send prompts and retrieve
+results through the gateway's JSON API using that existing CLI session.
 
 The included **Codex Online** web console gives you a browser interface for the
 same conversations, models, and runs.

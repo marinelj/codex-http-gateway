@@ -1,23 +1,19 @@
-I wanted to get more value from the Codex subscription I already pay for—and use it from my own tools.
+I built Codex HTTP Gateway for one reason: to maximize the value of the personal subscription I already pay for.
 
-So I built Codex HTTP Gateway: a self-hosted HTTP interface around the Codex CLI, with a browser console called Codex Online.
+The goal is to extend my subscription's Codex access into my own applications, scripts, and workflows through an HTTP API—so the same AI budget supports more of my everyday work.
 
-Sign in with your ChatGPT account, then submit prompts from your own applications, continue conversations across requests, and retrieve results through a simple JSON API.
+If I already have an included usage allowance, I want to make it useful wherever I'm building.
 
-It includes:
+The gateway reuses my authenticated Codex CLI session. My tools can submit prompts, continue conversations, and retrieve results through a JSON API. A browser console adds model controls, conversation history, and visibility into remaining allowance.
 
-- Persistent conversations and run history
-- Asynchronous tasks, progress polling, and cancellation
-- Model and reasoning effort controls
-- Remaining usage limits and reset times, when reported by Codex
-- A responsive web console
+Normal subscription limits still apply. It's designed for private personal use.
 
-The goal: make better use of your existing subscription allowance in your personal development workflows. Normal account limits still apply, and the running gateway is designed for private access.
+The motivation behind the project: get more useful work from the subscription you already have.
 
-Built with Python, FastAPI, and SQLite. Open source under MIT.
+Built with Python, FastAPI, and SQLite. MIT licensed.
 
 Project: [Codex HTTP Gateway](https://github.com/marinelj/codex-http-gateway)
 
-What would you connect it to first?
+What would you build with HTTP access to your own Codex subscription?
 
 #Codex #Python #OpenSource #DeveloperTools #AI
