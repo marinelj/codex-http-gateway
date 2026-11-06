@@ -1,247 +1,150 @@
-# Codex Online
+# Codex HTTP Gateway
 
-A small, persistent HTTP service for submitting prompts to the **Codex CLI** and polling
-thread status and output. New conversations and follow-up prompts use the same API.
+**Your personal Codex subscription, available to your own tools over HTTP.**
 
-Includes a responsive messaging console with conversation bubbles, saved Codex history,
-model and effort selectors, remaining usage limits, activity, cancellation, and run history.
+## The goal
+
+**Maximize the value of the personal subscription you already pay for by extending
+its Codex access into your own applications, scripts, and workflows.**
+
+You already have a subscription and an included usage allowance. This project helps
+you put that allowance to work wherever you need it: a personal app, a project
+utility, or a workflow you can call with an HTTP request.
+
+The purpose is to get more useful work from your existing AI budget. API-style
+access makes your subscription easier to integrate into everyday development;
+model controls and usage visibility help you decide how to spend its allowance.
+Normal subscription limits still apply.
+
+## How it works
+
+Codex HTTP Gateway wraps your authenticated local Codex CLI in a persistent HTTP
+service. Sign in with your eligible ChatGPT account, then send prompts and retrieve
+results through the gateway's JSON API using that existing CLI session.
+
+The included **Codex Online** web console gives you a browser interface for the
+same conversations, models, and runs.
 
 ```text
-Client → HTTP :8080 → gateway → codex exec --json
-                        └────→ SQLite run history + ordered events
+Your tools or browser → HTTP gateway → your authenticated Codex CLI
+                            └──────→ persistent run history and events
 ```
 
-Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), Git, and an installed,
-authenticated [Codex CLI](https://learn.chatgpt.com/docs/cli). Supports macOS and Linux.
+## Why use it?
 
-## Start
+- **Put your subscription to work in more places.** Call Codex from your own tools
+  through a small JSON API, using your existing CLI sign-in.
+- **Make informed use of your budget.** See reported usage limits and reset times,
+  and choose a model and reasoning effort for each request.
+- **Keep context between requests.** Start a conversation once and continue it with
+  its real Codex thread ID.
+- **Handle longer tasks.** Submit a prompt, receive a run ID, and poll for progress
+  and output. Cancel a run when you need to stop it.
+- **Keep a useful record.** SQLite stores gateway prompts, output, and ordered
+  events across service restarts.
+- **Use a browser when convenient.** The responsive console includes saved local
+  threads, chat history, model controls, and a usage notice board.
+
+## Quickstart
+
+Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), Git, and an installed
+[Codex CLI](https://learn.chatgpt.com/docs/cli). Supports macOS and Linux.
 
 ```sh
+git clone https://github.com/marinelj/codex-http-gateway.git
+cd codex-http-gateway
 uv sync --frozen
 codex login
 uv run codex-gateway serve --workspace /absolute/path/to/your/git-project
 ```
 
-The default address is `http://127.0.0.1:8080`. Interactive API documentation is at
-`/docs`; health checks are at `/healthz`. The console and `/v1` APIs open directly,
-without a gateway token or sign-in.
+Use ChatGPT sign-in in `codex login` to use your eligible subscription. Check your
+active authentication method with `codex login status`.
+
+Open [the console](http://127.0.0.1:8080/) or
+[interactive API documentation](http://127.0.0.1:8080/docs).
+
+**Keep the running service private.** It has no gateway authentication and defaults
+to `danger-full-access`, with approval requests disabled. Anyone who can reach it
+can read shared conversations and submit tasks with the host's permissions.
+The default bind address is loopback. See [security guidance](SECURITY.md) before
+connecting another device or exposing a proxy.
+
+## Call it over HTTP
+
+Submit a new conversation:
 
 ```sh
-export BASE=http://127.0.0.1:8080
-```
-
-The service reuses local Codex CLI authentication. No model or API key is hardcoded.
-
-## Web console
-
-Open the gateway's root URL (`http://127.0.0.1:8080/` standalone, or
-`http://127.0.0.1:8080/codex/` through the shared-port provider). Threads and history
-load automatically. On the same LAN, use `http://<server-ip>:8080/codex/` when the
-provider is configured to listen on its LAN interface.
-
-The **Active threads** sidebar lists saved, non-archived local Codex threads across
-all sources and providers, including conversations created outside the gateway.
-It loads every catalog page and supports search and scrolling. Here, "active"
-means non-archived; it does not mean every listed thread is currently generating.
-Runtime activity in a different Codex process is not necessarily visible to this client.
-
-Click a thread to select its ID and project folder. Enter a prompt, then click
-the round **Send message** button (or press Enter). Shift+Enter adds a new line.
-Selecting a thread does not submit the draft by itself. **New conversation** starts
-in the configured default workspace.
-
-The conversation shows your messages on the right and Codex replies on the left,
-with timestamps, a live thinking indicator, and a bottom composer. Saved messages
-from Codex CLI and app conversations load through the supported history API;
-**Load earlier messages** pages back through older turns. A **Stop** button cancels
-an active message. Selecting a different thread preserves the current draft.
-
-Choose a **Model** and **Effort** before sending. The lists come from your installed
-Codex account, and effort options update for each model. Choices apply to the next
-message, including resumed conversations. Each run records its model, effort, project
-folder and permissions. The API also accepts optional `model` and `reasoning_effort`;
-the original `{prompt, thread_id}` request remains valid.
-
-The **Usage left** notice board shows remaining percentages and reset times for
-Codex's reported limits, including 5-hour and weekly windows when available. It
-refreshes automatically and reports unavailable data explicitly. This is remaining
-account allowance, not a count of messages or context tokens. No account identifiers
-or authentication credentials are returned by this endpoint.
-
-**Activity & run details** expands the original Answer, Activity, Thread and JSON
-views. Copy output, download a transcript, or inspect individual runs. Raw event
-history covers gateway submissions; saved chat history also includes earlier Codex
-messages. History provides status filters and pagination, and the connection screen
-shows the workspace, permissions, model defaults and service limits.
-
-Prompts and model output are rendered as text, without executing model-supplied
-HTML. All scripts, styles and icons are served locally; no third-party assets
-receive your conversations.
-
-To send prompts to saved threads from other projects, set
-`GATEWAY_ALLOW_OTHER_WORKSPACES=true`. Each accepted run persists that thread's
-original folder, and the CLI uses it when resuming. This remains opt-in; the
-configured Codex sandbox applies to every run. Non-resumable or unavailable threads
-remain visible with sending disabled.
-
-## Submit and poll
-
-```sh
-curl -sS "$BASE/v1/runs" \
+curl -sS http://127.0.0.1:8080/v1/runs \
   -H 'Content-Type: application/json' \
   -H 'Idempotency-Key: architecture-review-1' \
   -d '{"prompt":"Review this project and summarize its architecture","thread_id":null}'
 ```
 
-Returns HTTP **202 Accepted** quickly, without waiting for the answer:
-
-```json
-{
-  "run_id": "run_...",
-  "thread_id": "<Codex UUID, or null while starting>",
-  "status": "running",
-  "status_url": "/v1/runs/run_...",
-  "thread_url": "/v1/threads/<uuid>"
-}
-```
-
-For a new thread the gateway waits at most one second for `thread.started`. If the
-queue or CLI startup takes longer, poll `status_url` to obtain the real thread UUID.
-A thread ID is never invented. Supply that UUID in a later POST to continue:
+The gateway returns HTTP `202 Accepted` with a `run_id`, `status_url`, and
+`thread_id` when available. Poll the returned `status_url` for status, events,
+and `final_output`:
 
 ```sh
-curl -sS "$BASE/v1/runs" \
+curl -sS http://127.0.0.1:8080/v1/runs/<run-id>
+```
+
+If the thread is still starting, its ID can initially be `null`. Read the real
+thread ID from the run response, then send a follow-up:
+
+```sh
+curl -sS http://127.0.0.1:8080/v1/runs \
   -H 'Content-Type: application/json' \
   -d '{"prompt":"Which part should I improve first?","thread_id":"<thread-uuid>"}'
-
-curl -sS "$BASE/v1/threads/<thread-uuid>"
-curl -sS "$BASE/v1/runs/<run-id>"
 ```
 
-The thread response includes `status`, `latest_run` (with `final_output`, usage,
-timestamps and any error), and the ordered events across **all gateway submissions**
-on that thread. The run response also includes its original prompt.
+Optional `model` and `reasoning_effort` fields control each message. Discover
+options at `/v1/models` and remaining reported allowance at `/v1/usage`.
 
-Event records preserve CLI JSON objects, stderr, and non-JSON stdout. Agent messages,
-tool results, file-change events and errors exposed by the CLI are available here;
-this does not provide hidden model reasoning or file downloads. The latest completed
-agent message is available as `final_output`, including partial output on a failed run.
+This is the gateway's own asynchronous API. Integrate through these endpoints;
+it does not implement the OpenAI Responses or Chat Completions API schemas.
 
-### Read every event
+## How subscription usage works
 
-Responses contain at most `limit` events (default 100, maximum 1000). Pass
-`?after=<next_cursor>&limit=1000` until `has_more` is false. Continue polling with
-the same last cursor for new events while the run is active. Cursors are durable
-and strictly increasing; the latest status is returned even with an empty event page.
+The gateway reuses your local Codex CLI authentication. ChatGPT sign-in uses your
+eligible plan's Codex access; API-key sign-in uses API billing. No OpenAI API key
+is required for the ChatGPT sign-in path.
 
-### Endpoints
+Requests still consume normal account allowance. Model availability, usage limits,
+and reset windows depend on your account. The gateway extends how you access Codex;
+it does not increase your quota or guarantee savings. The usage board displays
+reported allowance, rather than a dollar balance or an exact number of prompts.
 
-| Method | Path | Result |
+See the official [authentication documentation](https://learn.chatgpt.com/docs/auth)
+and [usage and pricing documentation](https://learn.chatgpt.com/docs/pricing).
+
+## Configure your workspace
+
+Copy [.env.example](.env.example) to a local `.env` when you need custom settings.
+
+| Setting | Default | Purpose |
 | --- | --- | --- |
-| POST | `/v1/runs` | Accept `{prompt, thread_id, model?, reasoning_effort?}`; null or omitted thread ID starts a thread |
-| GET | `/v1/threads` | Non-archived Codex catalog; optional `cursor`, `limit`, `search` |
-| GET | `/v1/threads/{thread_id}/info` | Saved title, project folder and availability |
-| GET | `/v1/threads/{thread_id}/messages` | Saved Codex messages; optional `cursor`, `limit` |
-| GET | `/v1/threads/{thread_id}` | Latest status and paginated events across the thread |
-| GET | `/v1/runs/{run_id}` | One prompt, status, output and paginated events |
-| GET | `/v1/runs` | Paginated run summaries; optional `thread_id`, `after`, `limit`, `order=asc\|desc` |
-| GET | `/v1/overview` | Workspace settings and aggregate run counts |
-| GET | `/v1/models` | Available account models, supported efforts, and current defaults |
-| GET | `/v1/usage` | Remaining account limits and reset times, cached for up to one minute |
-| POST | `/v1/runs/{run_id}/cancel` | Stop a queued or active run; safe to repeat |
-| GET | `/healthz` | Service liveness; does not verify model access or authentication |
+| `GATEWAY_HOST` | `127.0.0.1` | Bind address; keep access private |
+| `GATEWAY_PORT` | `8080` | HTTP port |
+| `GATEWAY_WORKSPACE` | Current directory | Project for new conversations |
+| `GATEWAY_SANDBOX` | `danger-full-access` | Also accepts `read-only` or `workspace-write` |
+| `GATEWAY_ALLOW_OTHER_WORKSPACES` | `false` | Allow sending to threads in other project folders |
+| `GATEWAY_MODEL` | CLI configuration | Default model |
+| `GATEWAY_REASONING_EFFORT` | CLI configuration | Default reasoning effort |
+| `GATEWAY_WORKERS` | `1` | Concurrent CLI workers |
 
-Run-list pagination uses `next_after` (a run ID), rather than an event cursor.
-`Idempotency-Key` is optional; reuse with the same body returns the original run,
-even after restart. Reuse with another body returns `409`.
+Other-workspace sending is opt-in, but the catalog and saved history can include
+conversations from other projects in the same Codex home. Treat all responses and
+transcript downloads as private.
 
-Statuses: `queued → starting → running → completed`. Terminal failures are
-`failed`, `timed_out`, `cancelled`, and `interrupted`. HTTP 202 means the request
-was recorded, not that Codex finished successfully. Check the eventual status.
+## Documentation and development
 
-## Thread continuity and concurrency
-
-- Existing local CLI threads can be continued in the configured workspace, or in
-  their original folders when other workspaces are enabled. Raw event inquiry declares
-  `history_scope: "gateway"`; the separate messages endpoint reads saved Codex chat
-  history with `history_scope: "codex"`.
-- Missing/archived local sessions return `404` or `409`; another workspace returns
-  `409` unless cross-workspace continuation is enabled.
-  Cloud task IDs and arbitrary numbers are not local Codex thread UUIDs.
-- The returned CLI thread UUID must match the requested UUID or execution is stopped.
-- One active gateway run per thread; overlapping submissions return `409 thread_busy`.
-  Coordinate independent CLI/app usage of the same thread separately.
-- Default one CLI worker also serializes different threads in a shared workspace.
-  Raising the worker count permits simultaneous filesystem access; use with care.
-- A bounded queue returns `429` with `Retry-After` when full.
-- A supervisor stops the CLI process group on cancellation, timeout, shutdown, or
-  loss of the gateway's lifetime pipe. Restart marks unfinished runs `interrupted`;
-  prompts are never automatically replayed because their actions may already have run.
-- One gateway process owns a data directory. Do not use Uvicorn `--workers` or
-  `--reload`; a process lock prevents accidental duplicate workers.
-
-## Configuration
-
-Settings use environment variables or a local `.env` (see [.env.example](.env.example)).
-CLI `--host`, `--port`, `--workspace`, and `--data-dir` override these values.
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `GATEWAY_HOST` | `127.0.0.1` | Listen address |
-| `GATEWAY_PORT` | `8080` | Listen port |
-| `GATEWAY_ROOT_PATH` | empty | Public proxy prefix, e.g. `/codex` |
-| `GATEWAY_WORKSPACE` | current directory | Default folder for new conversations; normally a Git repo |
-| `GATEWAY_ALLOW_OTHER_WORKSPACES` | `false` | Permit saved threads to resume in their original project folders |
-| `GATEWAY_DATA_DIR` | `~/.local/state/codex-http-gateway` | SQLite database and instance lock |
-| `GATEWAY_CODEX_HOME` | `CODEX_HOME` or `~/.codex` | Saved CLI auth, configuration and sessions |
-| `GATEWAY_CODEX_BIN` | `codex` | CLI executable |
-| `GATEWAY_SANDBOX` | `danger-full-access` | Full access by default for new and resumed conversations; also accepts `read-only` or `workspace-write` |
-| `GATEWAY_MODEL` | CLI configuration | Optional default model override |
-| `GATEWAY_REASONING_EFFORT` | CLI configuration | Optional default effort override |
-| `GATEWAY_PROXY_URL` | inherited proxy environment | Optional HTTP(S) proxy for CLI network requests |
-| `GATEWAY_WORKERS` | `1` | Background CLI workers |
-| `GATEWAY_MAX_PENDING_RUNS` | `64` | Active plus queued run limit |
-| `GATEWAY_STARTUP_WAIT_SECONDS` | `1` | Maximum POST wait for a thread ID (0–5 seconds) |
-| `GATEWAY_RUN_TIMEOUT_SECONDS` | `1800` | Execution timeout after a worker starts |
-| `GATEWAY_MAX_OUTPUT_BYTES` | `67108864` | Per-run captured CLI output limit (64 MiB) |
-| `GATEWAY_MAX_LINE_BYTES` | `8388608` | Maximum single CLI output line (8 MiB) |
-| `GATEWAY_SKIP_GIT_REPO_CHECK` | `false` | Explicitly permit a non-Git workspace |
-
-The HTTP request body limit is 512 KiB and the prompt limit is 100,000 characters.
-On networks requiring a desktop system proxy, set `GATEWAY_PROXY_URL` explicitly;
-headless CLI processes may not inherit the operating system's proxy settings.
-An output limit stops the run with an explicit error; captured output remains available.
-History is retained until the operator removes or archives the data directory.
-
-The database is bound to one workspace and one Codex home. Use another data directory
-when changing either default. Individual runs can record other folders when enabled.
-Upgrades migrate the existing database automatically and preserve prior output.
-Preserve the database **and** Codex session directory for continuity.
-
-## Publish through an existing port 8080 provider
-
-Keep the gateway on a loopback-only upstream and proxy `/codex/*` from the existing
-HTTP server. The independent gateway and its repository remain separate.
-
-```sh
-GATEWAY_PORT=18080 GATEWAY_ROOT_PATH=/codex \
-  uv run codex-gateway serve --workspace /absolute/path/to/your/git-project
-```
-
-Configure the provider to strip `/codex` and forward to `http://127.0.0.1:18080`,
-preserving the client `Content-Type` and `Idempotency-Key` headers.
-For a Node HTTP provider, use the [included adapter](integrations/node-http/README.md).
-Then use `BASE=http://your-provider:8080/codex`. `/codex/docs` and returned polling
-URLs include the public prefix.
-
-This is a single-operator service with no gateway authentication. Anyone who can
-reach the API can submit prompts and read its shared thread history. Codex uses the
-host's local account and the configured sandbox. Approval requests are disabled for
-headless execution. The default permission is **Full access**: the CLI runs with
-`sandbox_mode="danger-full-access"` and `approval_policy="never"`. This applies to
-both new and resumed conversations. Configure a narrower sandbox when desired.
-
-## Development
+- [API and operations reference](docs/usage.md): endpoints, pagination, concurrency,
+  full configuration, proxy setup, and macOS background service installation.
+- [Security guidance](SECURITY.md): credentials, runtime data, and public releases.
+- [Node HTTP adapter](integrations/node-http/README.md): mount under `/codex` on an
+  existing server with access restricted to your own clients.
+- [Design notes](DESIGN.md): console interaction and visual design.
 
 ```sh
 uv sync --frozen --dev
@@ -252,30 +155,7 @@ node --test integrations/node-http/proxy.test.mjs tests/frontend.test.mjs
 uv build
 ```
 
-Automated tests use a fake CLI to exercise real subprocesses, HTTP requests,
-persistence, continuation, failures and lifecycle behavior without model charges.
-The optional real CLI smoke test is documented in `scripts/smoke.py`.
+Tests use a fake CLI and do not consume model usage. The optional live smoke test
+in `scripts/smoke.py` consumes normal account allowance.
 
-Codex interface: [official noninteractive execution documentation](https://learn.chatgpt.com/docs/non-interactive-mode).
-Thread discovery uses the supported [Codex app-server catalog](https://learn.chatgpt.com/docs/app-server).
-Design research is recorded in [DESIGN.md](DESIGN.md).
-
-## Run continuously on macOS
-
-After configuring `.env` and running `uv sync --frozen`, install a user LaunchAgent:
-
-```sh
-uv run python scripts/install_launchd.py
-```
-
-This starts the gateway now and restarts it on failure and subsequent user login.
-Logs are written to `GATEWAY_DATA_DIR/service*.log`.
-
-Rerun the installer after changing `.env` so the LaunchAgent's settings are refreshed.
-
-To stop and remove the agent:
-
-```sh
-launchctl bootout "gui/$(id -u)/com.marinelj.codex-http-gateway"
-rm ~/Library/LaunchAgents/com.marinelj.codex-http-gateway.plist
-```
+Released under the [MIT License](LICENSE).
