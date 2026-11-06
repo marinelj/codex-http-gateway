@@ -4,6 +4,7 @@ permissions:
   contents: read
 jobs:
   check:
+    timeout-minutes: 10
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -19,6 +20,8 @@ jobs:
       - run: uv sync --frozen --dev --python 3.12
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run pytest
+      - name: Run Python tests
+        timeout-minutes: 3
+        run: uv run pytest -vv -o faulthandler_timeout=60
       - run: node --test integrations/node-http/proxy.test.mjs tests/frontend.test.mjs
       - run: uv build
